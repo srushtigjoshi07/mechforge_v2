@@ -1,0 +1,6 @@
+{
+  "name": "MechForge",
+  "description": "Educational Mechanical Engineering portal tracking syllabus topics, competitive exams & technical interview preparation, and progressive Socratic hints for independent self-study.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

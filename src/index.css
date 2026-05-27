@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+@theme {
+  --font-barlow: "Barlow", sans-serif;
+  --font-condensed: "Barlow Condensed", sans-serif;
+  --font-bebas: "Bebas Neue", sans-serif;
+  --color-suzuki-red: #E2231A;
+  --color-suzuki-blue: #1A3278;
+  --color-dark-bg: #080808;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    font-size: 106%;
+  }
+  
+  body {
+    background-color: #080808;
+    color: #ffffff;
+    font-family: "Barlow", sans-serif;
+    overflow-x: hidden;
+  }
+
+  /* Custom thin scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #080808;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #E2231A;
+    border-radius: 3px;
+  }
+}
