@@ -12,8 +12,9 @@ import {
   Check, 
   X,
   Gauge,
-  Sparkles
+  Sparkles as SparklesIcon
 } from 'lucide-react';
+import QuickQuizModal from './QuickQuizModal';
 
 interface MatrixExplorersProps {
   activeId: "CAD" | "FEA" | "CFD" | "SRE" | "IoT" | null;
@@ -23,6 +24,8 @@ interface MatrixExplorersProps {
 
 export default function MatrixExplorers({ activeId, onClose, onIncrementScore }: MatrixExplorersProps) {
   if (!activeId) return null;
+
+  const [isQuizOpen, setIsQuizOpen] = useState(false);
 
   // State states for various simulator modules
   // CAD state
@@ -736,6 +739,45 @@ export default function MatrixExplorers({ activeId, onClose, onIncrementScore }:
             )}
 
           </div>
+
+          {/* Socratic Interactive Retention Quiz Trigger Panel */}
+          <div className="mt-5 p-4 bg-indigo-950/25 border border-indigo-500/30 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4 z-10 relative">
+            <div className="flex items-center gap-3">
+              <div className="bg-indigo-500/10 p-2.5 rounded-lg border border-indigo-500/30 text-indigo-400 shrink-0">
+                <SparklesIcon size={18} className="animate-pulse" />
+              </div>
+              <div className="text-left">
+                <h4 className="text-xs md:text-sm font-black text-white uppercase tracking-wider font-mono flex items-center gap-1.5">
+                  Interactive Lesson Progressed!
+                  <span className="px-1.5 py-0.5 bg-[#e2231a]/15 border border-[#e2231a]/20 rounded text-[9px] text-yellow-400 font-extrabold font-mono animate-pulse">
+                    READY FOR RETENTION TESTING
+                  </span>
+                </h4>
+                <p className="text-[10px] md:text-xs text-zinc-400 font-semibold font-sans mt-0.5 leading-relaxed">
+                  You successfully verified models in <strong className="text-zinc-200 uppercase">{activeId}</strong> module. Answer the verification scenario to claim certified bonus credits.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setIsQuizOpen(true)}
+              className="w-full sm:w-auto px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-mono text-xs font-black uppercase tracking-widest rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-indigo-600/35"
+              title="Initiate Socratic Quiz Scenario"
+            >
+              🎓 TAKE RETENTION QUIZ (+15 PTS)
+            </button>
+          </div>
+
+          {/* Quick Quiz Modal Render Portals */}
+          <QuickQuizModal
+            topicId={activeId}
+            isOpen={isQuizOpen}
+            onClose={() => setIsQuizOpen(false)}
+            onSuccess={(pts) => {
+              onIncrementScore(pts);
+              setIsQuizOpen(false);
+            }}
+          />
 
           {/* Interactive footer lesson hints */}
           <div className="border-t border-white/5 pt-3.5 mt-4 flex items-center justify-between text-xs md:text-sm font-mono text-zinc-400 z-10">

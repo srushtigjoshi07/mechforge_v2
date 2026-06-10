@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Menu, X, Landmark, Shield, Clock } from 'lucide-react';
+import { motion } from 'motion/react';
 
 interface NavbarProps {
   onOpenRideForm: () => void;
@@ -8,6 +9,7 @@ interface NavbarProps {
   candidateName?: string;
   candidateEmail?: string;
   dailyStreak?: number;
+  animateStreakTrigger?: number;
 }
 
 export default function Navbar({
@@ -16,11 +18,34 @@ export default function Navbar({
   isLoggedIn,
   candidateName,
   candidateEmail,
-  dailyStreak = 1
+  dailyStreak = 1,
+  animateStreakTrigger = 0
 }: NavbarProps) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState('');
+  const [isShaking, setIsShaking] = useState(false);
+
+  const prevStreakRef = useRef<number>(dailyStreak);
+  const prevTriggerRef = useRef<number>(animateStreakTrigger);
+
+  useEffect(() => {
+    if (
+      dailyStreak > prevStreakRef.current ||
+      (animateStreakTrigger > prevTriggerRef.current && animateStreakTrigger > 0)
+    ) {
+      setIsShaking(true);
+      const timer = setTimeout(() => {
+        setIsShaking(false);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [dailyStreak, animateStreakTrigger]);
+
+  useEffect(() => {
+    prevStreakRef.current = dailyStreak;
+    prevTriggerRef.current = animateStreakTrigger;
+  }, [dailyStreak, animateStreakTrigger]);
 
   useEffect(() => {
     // Scroll detection
@@ -72,9 +97,49 @@ export default function Navbar({
           <div className="flex flex-col sm:flex-row sm:items-center gap-1">
             <span className="font-bebas text-xl md:text-2xl tracking-wider font-bold text-white">MECHFORGE_V2.4.0</span>
             {isLoggedIn ? (
-              <span className="px-1.5 py-0.5 bg-[#e2231a]/25 border border-[#e2231a] text-[9px] font-mono tracking-widest font-extrabold text-[#e2231a] rounded">
-                {dailyStreak} DAY STREAK // ACTIVE
-              </span>
+              <motion.span
+                variants={{
+                  shake: {
+                    x: [0, -6, 6, -6, 6, -3, 3, 0],
+                    scale: [1, 1.15, 1.15, 1.2, 1.2, 1.05, 1.05, 1],
+                    rotate: [0, -4, 4, -4, 4, 0],
+                    backgroundColor: [
+                      "rgba(226,35,26,0.25)",
+                      "rgba(234,179,8,0.7)",
+                      "rgba(251,146,60,0.8)",
+                      "rgba(234,179,8,0.9)",
+                      "rgba(226,35,26,0.25)"
+                    ],
+                    borderColor: ["#e2231a", "#eab308", "#fb923c", "#eab308", "#e2231a"],
+                    boxShadow: [
+                      "0 0 0px rgba(226,35,26,0)",
+                      "0 0 15px rgba(234,179,8,0.6)",
+                      "0 0 25px rgba(251,146,60,0.8)",
+                      "0 0 15px rgba(234,179,8,0.6)",
+                      "0 0 0px rgba(226,35,26,0)"
+                    ],
+                  },
+                  pulse: {
+                    scale: [1, 1.03, 1],
+                    boxShadow: [
+                      "0 0 0px rgba(226,35,26,0)",
+                      "0 0 8px rgba(226,35,26,0.3)",
+                      "0 0 0px rgba(226,35,26,0)"
+                    ],
+                  }
+                }}
+                animate={isShaking ? "shake" : "pulse"}
+                transition={
+                  isShaking 
+                    ? { duration: 1.2, ease: "easeInOut" }
+                    : { duration: 2.5, repeat: Infinity, ease: "easeInOut" }
+                }
+                className="px-2 py-0.5 bg-[#e2231a]/25 border border-[#e2231a] text-[9.5px] font-mono tracking-widest font-extrabold text-white rounded cursor-help relative flex items-center gap-1.5"
+                title="Your daily consecutive study streak! Keep completing daily Socratic/Numerical quizzes to maintain!"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                <span>{dailyStreak} DAY STREAK // ACTIVE 🔥</span>
+              </motion.span>
             ) : (
               <span className="px-1.5 py-0.5 bg-zinc-800/40 border border-zinc-700/60 text-[9px] font-mono tracking-widest font-extrabold text-zinc-500 rounded">
                 0 DAY STREAK // INACTIVE

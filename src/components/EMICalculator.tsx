@@ -447,9 +447,14 @@ export default function EMICalculator({ initialBikeId, onClose }: EMICalculatorP
 
                         {/* LOAD P FORCE VECTOR VECTOR ARROW */}
                         <g transform={`translate(${loadArrowX}, ${loadArrowY - 26})`}>
-                          <line x1="0" y1="0" x2="0" y2="20" stroke="#3b82f6" strokeWidth="2.5" />
-                          <polygon points="-4,16 4,16 0,22" fill="#3b82f6" />
-                          <text x="6" y="8" fill="#3b82f6" fontSize="8" fontFamily="sans-serif" fontWeight="bold">Load P</text>
+                          <g
+                            key={beamLoad}
+                            style={{ transformOrigin: "0px 22px" }}
+                          >
+                            <line x1="0" y1="0" x2="0" y2="20" stroke="#3b82f6" strokeWidth="2.5" />
+                            <polygon points="-4,16 4,16 0,22" fill="#3b82f6" />
+                            <text x="6" y="8" fill="#3b82f6" fontSize="8" fontFamily="sans-serif" fontWeight="bold">Load P</text>
+                          </g>
                         </g>
 
                         {/* Text values */}

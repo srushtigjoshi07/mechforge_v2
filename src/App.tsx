@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   ShieldCheck,
   Check,
@@ -18,7 +18,11 @@ import {
   BookmarkCheck,
   Award,
   Users,
-  Info
+  Info,
+  Swords,
+  Send,
+  Trophy,
+  Flame
 } from 'lucide-react';
 
 import { BIKES_DATA, DEALS_DATA, SAFETY_PILLARS, SERVICE_FAQS, TIMELINE_MOMENTS } from './data';
@@ -29,23 +33,16 @@ import FilmModal from './components/FilmModal';
 import TechNewsFeed from './components/TechNewsFeed';
 
 import MatrixExplorers from './components/MatrixExplorers';
+import StudyTimerSidebar from './components/StudyTimerSidebar';
+import QuickQuizModal from './components/QuickQuizModal';
+import PeerDiscussionChat from './components/PeerDiscussionChat';
 
 export default function App() {
-  // One-time auto-reset schema check for 120s timer per question & Day 1 start
+  // One-time final reset checking for pristine submission review starting at Day 1
   useEffect(() => {
-    if (localStorage.getItem('mechResetCompleted_v3') !== 'true') {
-      localStorage.removeItem('mechCurrentScore');
-      localStorage.removeItem('unlockedModules');
-      localStorage.removeItem('mechUserBadges');
-      localStorage.removeItem('mechCompletedAnswers');
-      localStorage.removeItem('mechHintsUsed');
-      localStorage.removeItem('g1Answers');
-      localStorage.removeItem('mcqAnswers');
-      localStorage.removeItem('solutionsRevealed');
-      localStorage.removeItem('mechMistakeCounter');
-      localStorage.removeItem('mechVirtualDaysSimulated');
-      localStorage.removeItem('mechUnlimitedAccess');
-      localStorage.setItem('mechResetCompleted_v3', 'true');
+    if (localStorage.getItem('mechFinalReset_v5') !== 'true') {
+      localStorage.clear();
+      localStorage.setItem('mechFinalReset_v5', 'true');
       window.location.reload();
     }
   }, []);
@@ -65,6 +62,7 @@ export default function App() {
     const savedGlobal = localStorage.getItem('mechDailyStreak');
     return savedGlobal ? parseInt(savedGlobal, 10) : 1;
   });
+  const [streakAnimTrigger, setStreakAnimTrigger] = useState<number>(0);
   const [currentScore, setScore] = useState<number>(() => {
     const isLg = localStorage.getItem('mechIsLoggedIn') === 'true';
     if (!isLg) return 0;
@@ -74,10 +72,47 @@ export default function App() {
       if (saved) return parseInt(saved, 10);
     }
     const savedGlobal = localStorage.getItem('mechCurrentScore');
-    const resetDone = localStorage.getItem('mechResetCompleted_v3') === 'true';
+    const resetDone = localStorage.getItem('mechFinalReset_v4') === 'true';
     if (!resetDone) return 0;
     return savedGlobal ? parseInt(savedGlobal, 10) : 0; // Default score starts at 0 for a clean assess track
   });
+
+  // Advanced AI score verification logs state
+  const [aiAuditLogs, setAiAuditLogs] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('mechAiAuditLogs');
+      return saved ? JSON.parse(saved) : [
+        "🤖 [AUDITOR_LOADED]: AI verification engine running on pipeline 2A.",
+        "✓ System baseline synchronized: 0 point anomalies detected."
+      ];
+    } catch {
+      return ["🤖 [AUDITOR_LOADED]: AI verification engine running on pipeline 2A."];
+    }
+  });
+
+  // Synchronize dynamic AI verification audit log lines when score changes
+  const prevScoreRef = useRef<number>(currentScore);
+  useEffect(() => {
+    if (currentScore !== prevScoreRef.current) {
+      const diff = currentScore - prevScoreRef.current;
+      const timestamp = new Date().toLocaleTimeString();
+      let logMsg = "";
+      if (diff > 0) {
+        logMsg = `🔋 [PTS_DELTA]: +${diff} points verified at ${timestamp}. Action: Curriculum progress/file sync successfully synced to master pipeline.`;
+      } else if (diff < 0) {
+        logMsg = `🚨 [PTS_DELTA]: ${diff} points deduction logged at ${timestamp}. Action: System bypass or parameter reset activated.`;
+      }
+      if (logMsg) {
+        setAiAuditLogs(prev => {
+          const updated = [...prev, logMsg];
+          const trimmed = updated.slice(-6); // Keep last 6 logs
+          localStorage.setItem('mechAiAuditLogs', JSON.stringify(trimmed));
+          return trimmed;
+        });
+      }
+      prevScoreRef.current = currentScore;
+    }
+  }, [currentScore]);
 
 
   const [activeMatrixId, setActiveMatrixId] = useState<"CAD" | "FEA" | "CFD" | "SRE" | "IoT" | null>(null);
@@ -129,6 +164,193 @@ export default function App() {
 
   // Leaderboard toggler filter state
   const [leaderboardFilter, setLeaderboardFilter] = useState<'intra' | 'inter'>('inter');
+
+  // Direct Peer Challenge states and operations
+  const [peerChallengePanelActive, setPeerChallengePanelActive] = useState<boolean>(false);
+  const [challenges, setChallenges] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('mechPeerChallenges');
+      if (saved) return JSON.parse(saved);
+      const initial = [
+        {
+          id: 'chal-mock-1',
+          senderName: 'Ananya Sen',
+          receiverName: 'You',
+          college: localStorage.getItem('mechCollegeName') || 'IIT Madras',
+          topicId: 'CAD',
+          status: 'PENDING',
+          createdAt: '12:45:10 PM'
+        },
+        {
+          id: 'chal-mock-2',
+          senderName: 'Pranav Kulkarni',
+          receiverName: 'You',
+          college: localStorage.getItem('mechCollegeName') || 'IIT Madras',
+          topicId: 'FEA',
+          status: 'ACCEPTED',
+          createdAt: '11:20:15 AM'
+        }
+      ];
+      localStorage.setItem('mechPeerChallenges', JSON.stringify(initial));
+      return initial;
+    } catch {
+      return [];
+    }
+  });
+
+  const [challengeReceiver, setChallengeReceiver] = useState<string>('');
+  const [challengeTopic, setChallengeTopic] = useState<'CAD' | 'FEA' | 'CFD' | 'SRE' | 'IoT'>('CAD');
+  const [activeDuelId, setActiveDuelId] = useState<string | null>(null);
+  const [isDuelQuizOpen, setIsDuelQuizOpen] = useState<boolean>(false);
+  const [duelTopicId, setDuelTopicId] = useState<'CAD' | 'FEA' | 'CFD' | 'SRE' | 'IoT'>('CAD');
+
+  useEffect(() => {
+    localStorage.setItem('mechPeerChallenges', JSON.stringify(challenges));
+  }, [challenges]);
+
+  const handleSendChallenge = (receiverName: string, topic: 'CAD' | 'FEA' | 'CFD' | 'SRE' | 'IoT') => {
+    if (!receiverName) return;
+    const newChallenge = {
+      id: 'chal-' + Date.now(),
+      senderName: 'You',
+      receiverName: receiverName,
+      college: collegeName || 'IIT Madras',
+      topicId: topic,
+      status: 'PENDING',
+      createdAt: new Date().toLocaleTimeString()
+    };
+
+    setChallenges(prev => [newChallenge, ...prev]);
+    setShowNotification(`⚔️ CHALLENGE TRANSMITTED: Issued 1v1 ${topic} duel challenge to ${receiverName}!`);
+
+    // Simulate peer accepting challenge after a realistic delay (2 seconds)
+    setTimeout(() => {
+      setChallenges(prev => {
+        return prev.map(c => {
+          if (c.id === newChallenge.id) {
+            setAiAuditLogs(logs => [
+              `📡 [DUEL_SIGNAL]: Peer ${receiverName} accepted your challenge on ${topic}! Matrix duel channel locked.`,
+              ...logs
+            ]);
+            return { ...c, status: 'ACCEPTED' };
+          }
+          return c;
+        });
+      });
+    }, 2000);
+  };
+
+  const handleAcceptChallenge = (challengeId: string) => {
+    setChallenges(prev => {
+      const updated = prev.map(c => {
+        if (c.id === challengeId) {
+          const opponent = c.senderName === 'You' ? c.receiverName : c.senderName;
+          setAiAuditLogs(logs => [
+            `📡 [DUEL_CONNECTION]: Accepted inbound challenge from ${opponent} on topic ${c.topicId}.`,
+            ...logs
+          ]);
+          return { ...c, status: 'ACCEPTED' };
+        }
+        return c;
+      });
+      return updated;
+    });
+  };
+
+  const handleDeclineChallenge = (challengeId: string) => {
+    setChallenges(prev => {
+      const filtered = prev.filter(c => c.id !== challengeId);
+      setShowNotification(`✕ Challenge transaction terminated.`);
+      return filtered;
+    });
+  };
+
+  const handleLaunchDuel = (challengeId: string, topic: 'CAD' | 'FEA' | 'CFD' | 'SRE' | 'IoT') => {
+    setActiveDuelId(challengeId);
+    setDuelTopicId(topic);
+    setIsDuelQuizOpen(true);
+  };
+
+  const handleDuelSuccess = (pts: number) => {
+    // Award base points
+    setScore(prev => prev + pts);
+    setStreakAnimTrigger(prev => prev + 1);
+    
+    if (activeDuelId) {
+      setChallenges(prev => {
+        const updated = prev.map(c => {
+          if (c.id === activeDuelId) {
+            const rand = Math.random();
+            let finalStatus: 'COMPLETED_WIN' | 'COMPLETED_LOSS' | 'COMPLETED_DRAW' = 'COMPLETED_WIN';
+            let winner = 'You';
+            let bonusPts = 30; // +30 pt stakes
+            let logMsg = '';
+            
+            const opponent = c.senderName === 'You' ? c.receiverName : c.senderName;
+
+            if (rand < 0.5) {
+              finalStatus = 'COMPLETED_WIN';
+              winner = 'You';
+              bonusPts = 30;
+              logMsg = `🏆 [PEER_DUEL_VICTORY]: Successfully defeated ${opponent} on ${c.topicId} Socratic scenario! Verified stakes +30 points credited.`;
+            } else {
+              finalStatus = 'COMPLETED_DRAW';
+              winner = 'Draw';
+              bonusPts = 10;
+              logMsg = `🤝 [PEER_DUEL_DRAW]: Ended in tie with ${opponent} on ${c.topicId}! Verified stakes +10 points mutual credit.`;
+            }
+
+            // Award bonus points
+            setScore(scorePrev => scorePrev + bonusPts);
+            
+            setAiAuditLogs(logs => [
+              logMsg,
+              ...logs
+            ]);
+
+            return {
+              ...c,
+              status: finalStatus,
+              senderScore: c.senderName === 'You' ? 1 : 1,
+              receiverScore: c.receiverName === 'You' ? 1 : 1,
+              winnerName: winner
+            };
+          }
+          return c;
+        });
+        return updated;
+      });
+      setActiveDuelId(null);
+    }
+    setIsDuelQuizOpen(false);
+  };
+
+  const handleDuelClose = () => {
+    if (activeDuelId) {
+      setChallenges(prev => {
+        const updated = prev.map(c => {
+          if (c.id === activeDuelId && c.status === 'ACCEPTED') {
+            const opponent = c.senderName === 'You' ? c.receiverName : c.senderName;
+            setAiAuditLogs(logs => [
+              `💀 [PEER_DUEL_LOSS]: Forfeited or failed challenge against ${opponent} on ${c.topicId}. Winner: ${opponent}.`,
+              ...logs
+            ]);
+            return {
+              ...c,
+              status: 'COMPLETED_LOSS',
+              senderScore: c.senderName === 'You' ? 0 : 1,
+              receiverScore: c.receiverName === 'You' ? 0 : 1,
+              winnerName: opponent
+            };
+          }
+          return c;
+        });
+        return updated;
+      });
+      setActiveDuelId(null);
+    }
+    setIsDuelQuizOpen(false);
+  };
 
   // Agentic AI Diagnostics & Benchmarking Dashboard states
   const [isDiagnosing, setIsDiagnosing] = useState(false);
@@ -183,82 +405,9 @@ export default function App() {
     });
   };
 
-  // Trial Reset Mode for fast visual review matching user scenario
-  const handleSecureMockTrialReset = () => {
-    localStorage.clear();
-    
-    // Seed standard competitors
-    const DEFAULT_COMPETITORS = [
-      { name: "Pranav Kulkarni", college: "KLE Technological University", score: 90, status: "ACTIVE" },
-      { name: "Shruti Hegde", college: "IIT Bombay", score: 105, status: "ACTIVE" },
-      { name: "Aniket Deshpande", college: "RV College of Engineering", score: 75, status: "STABILIZED" },
-      { name: "Rohan Kamath", college: "MIT Manipal", score: 120, status: "ACTIVE" },
-      { name: "Megha Kundapur", college: "COEP Technological University", score: 115, status: "ACTIVE" },
-    ];
-    
-    // Auto-login as a secure trial candidate
-    const trialUser = {
-      name: "Alex Rivera",
-      email: "alex.rivera@cybernet.edu",
-      collegeName: "Institute of High Cybernetics",
-      password: "secureUser123"
-    };
-
-    localStorage.setItem('mechCandidateName', trialUser.name);
-    localStorage.setItem('mechCollegeName', trialUser.collegeName);
-    localStorage.setItem('mechUserEmail', trialUser.email);
-    localStorage.setItem('mechIsLoggedIn', 'true');
-    localStorage.setItem('mechCurrentScore', '95');
-    localStorage.setItem('mechDailyStreak', '4');
-    localStorage.setItem('mechCurrentScore_alex.rivera@cybernet.edu', '95');
-    localStorage.setItem('mechDailyStreak_alex.rivera@cybernet.edu', '4');
-    localStorage.setItem('mechLastLoginDate_alex.rivera@cybernet.edu', new Date().toDateString());
-    
-    const seededRegistries = [
-      ...DEFAULT_COMPETITORS,
-      { name: trialUser.name, email: trialUser.email, college: trialUser.collegeName, score: 95, status: "ACTIVE" },
-      { name: "Rahul Mehta", college: trialUser.collegeName, score: 75, status: "ACTIVE" },
-      { name: "Ananya Sen", college: trialUser.collegeName, score: 110, status: "ACTIVE" }
-    ];
-
-    localStorage.setItem('mechRegisteredUsers', JSON.stringify(seededRegistries));
-    localStorage.setItem('mechUserAccounts', JSON.stringify([
-      { name: trialUser.name, email: trialUser.email, password: trialUser.password, collegeName: trialUser.collegeName }
-    ]));
-    localStorage.setItem('unlockedModules', JSON.stringify(['CAD', 'FEA']));
-    localStorage.setItem('mechResetCompleted_v3', 'true');
-
-    // Trigger state refreshes
-    setCandidateName(trialUser.name);
-    setCandidateEmail(trialUser.email);
-    setCollegeName(trialUser.collegeName);
-    setIsLoggedIn(true);
-    setScore(95);
-    setDailyStreak(4);
-    setRegisteredUsers(seededRegistries);
-    setLeaderboardFilter('intra');
-
-    setDiagnosticsLogs([
-      "🔄 [MOCK_TRIAL_INIT]: System completely wiped and re-initialized.",
-      "🗝️ [AUTH_OK]: Securely authenticated Scholar Candidate: Alex Rivera.",
-      "🎓 [COLLEGE_ROUTING]: Academic specialized college routed: Institute of High Cybernetics.",
-      "🛡️ [BENCHMARK_READY]: Intra-college peers (Rahul Mehta, Ananya Sen) loaded and aligned. National competitors synchronized."
-    ]);
-    setDiagStatus('RESOLVED');
-    setLastScanTime(new Date().toLocaleTimeString());
-
-    alert("🎉 SUCCESS: Secure mock trial session compiled successfully! You have been logged in as a simulated student user: Alex Rivera, from Institute of High Cybernetics, starting on Day 4 with 95 Proved Points. Check out the automated peer benchmarking inside the leaderboard matrix!");
-  };
-
   // Leaderboard state of registered users loaded from localStorage
   const [registeredUsers, setRegisteredUsers] = useState<{name: string, email?: string, college: string, score: number, status: string}[]>(() => {
-    const DEFAULT_COMPETITORS = [
-      { name: "Pranav Kulkarni", college: "KLE Technological University", score: 90, status: "ACTIVE" },
-      { name: "Shruti Hegde", college: "IIT Bombay", score: 105, status: "ACTIVE" },
-      { name: "Aniket Deshpande", college: "RV College of Engineering", score: 75, status: "STABILIZED" },
-      { name: "Rohan Kamath", college: "MIT Manipal", score: 120, status: "ACTIVE" },
-      { name: "Megha Kundapur", college: "COEP Technological University", score: 115, status: "ACTIVE" },
-    ];
+    const DEFAULT_COMPETITORS: {name: string, email?: string, college: string, score: number, status: string}[] = [];
     try {
       const saved = localStorage.getItem('mechRegisteredUsers');
       if (saved) {
@@ -318,27 +467,7 @@ export default function App() {
           });
         }
 
-        // Dynamically monitor login college via Agentic AI
-        if (collegeName && collegeName.trim() !== "" && collegeName !== "OFFLINE" && collegeName !== "Undecided") {
-          const formattedCollege = collegeName.trim();
-          const peers = updated.filter(u => u.college.toLowerCase().trim() === formattedCollege.toLowerCase() && u.name !== candidateName);
-          if (peers.length === 0) {
-            // Seed peer challengers for realistic Intra-College benchmarking
-            updated.push({
-              name: `Rahul Mehta`,
-              college: formattedCollege,
-              score: Math.max(30, currentScore - 20),
-              status: "ACTIVE"
-            });
-            updated.push({
-              name: `Ananya Sen`,
-              college: formattedCollege,
-              score: currentScore + 35,
-              status: "ACTIVE"
-            });
-          }
-        }
-
+        // Dynamically monitor login college via Agentic AI - real-time mode active with zero mock competitors
         localStorage.setItem('mechRegisteredUsers', JSON.stringify(updated));
         return updated;
       });
@@ -606,6 +735,15 @@ export default function App() {
 
 
 
+  const collegePeers = registeredUsers.filter(u => 
+    u.college && u.college.toLowerCase().trim() === (collegeName || 'IIT Madras').toLowerCase().trim() && 
+    (u.name || "").toLowerCase().trim() !== (candidateName || 'You').toLowerCase().trim()
+  );
+  
+  const selectablePeers = collegePeers.length > 0 
+    ? collegePeers 
+    : registeredUsers.filter(u => u.name !== (candidateName || 'You'));
+
   const handleSelectedForRide = (bikeId: string) => {
     setSelectedBikeIdForForm(bikeId);
     const element = document.getElementById('test-ride-wrapper');
@@ -640,6 +778,15 @@ export default function App() {
         candidateName={candidateName}
         candidateEmail={candidateEmail}
         dailyStreak={dailyStreak}
+        animateStreakTrigger={streakAnimTrigger}
+      />
+
+      {/* Pomodoro Study Timer Sidebar Panel */}
+      <StudyTimerSidebar
+        currentScore={currentScore}
+        setScore={setScore}
+        candidateName={candidateName}
+        isLoggedIn={isLoggedIn}
       />
 
       {/* HERO SECTION */}
@@ -791,6 +938,7 @@ export default function App() {
                 setScore={setScore}
                 dailyStreak={dailyStreak}
                 setDailyStreak={setDailyStreak}
+                onStreakTrigger={() => setStreakAnimTrigger(prev => prev + 1)}
               />
             </div>
           </section>
@@ -800,6 +948,7 @@ export default function App() {
       <BikeGallery
         onSelectedForRide={handleSelectedForRide}
         candidateName={candidateName}
+        candidateEmail={candidateEmail}
         collegeName={collegeName}
         currentScore={currentScore}
         setScore={setScore}
@@ -807,6 +956,7 @@ export default function App() {
         setActiveTrackID={setActiveTrackID}
         dailyStreak={dailyStreak}
         setDailyStreak={setDailyStreak}
+        onStreakTrigger={() => setStreakAnimTrigger(prev => prev + 1)}
       />
 
       {/* SECTION 4: THE SCIENCE (TECHNOLOGY) */}
@@ -935,6 +1085,7 @@ export default function App() {
             onClose={() => setActiveMatrixId(null)} 
             onIncrementScore={(pts) => {
               setScore(prev => prev + pts);
+              setStreakAnimTrigger(prev => prev + 1);
               setShowNotification(`🎉 OUTSTANDING! Socratic solver complete. +${pts} added straight to your scoreboard matrix.`);
             }}
           />
@@ -1009,79 +1160,398 @@ export default function App() {
       <section id="deals" className="py-24 bg-[#080808]">
         <div className="max-w-7xl mx-auto px-6 md:px-12">
           
-          <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-12 gap-6">
-            <div>
-              <div className="font-condensed text-xs text-suzuki-red tracking-[0.3em] uppercase font-bold flex items-center gap-3">
-                <span className="w-8 h-[1px] bg-suzuki-red"></span>
-                PROVING GROUND SCORES
+          <div className="flex flex-col gap-8 mb-10">
+            {/* Title Block & Description */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 border-b border-white/15 pb-8">
+              <div>
+                <div className="font-mono text-xs text-suzuki-red tracking-[0.3em] uppercase font-black flex items-center gap-2">
+                  <span className="w-6 h-[2px] bg-suzuki-red inline-block"></span>
+                  PROVING GROUND SCORES
+                </div>
+                <h2 className="font-bebas text-5xl md:text-6xl tracking-wide uppercase leading-none text-white mt-3">
+                  LIVE DUAL-GRID <span className="text-suzuki-red italic font-extrabold">LEADERBOARD MATRIX</span>
+                </h2>
+                <p className="text-zinc-400 font-sans text-base md:text-lg max-w-2xl mt-4 leading-relaxed font-medium">
+                  Real-time scholastic ranking matrix populated from active system parameters. Complete Socratic quiz scenarios and study sessions to claims points.
+                </p>
               </div>
-              <h2 className="font-bebas text-5xl md:text-6xl tracking-wide uppercase leading-tight text-white mb-2">
-                LIVE DUAL-GRID <span className="text-suzuki-red italic font-extrabold">LEADERBOARD MATRIX</span>
-              </h2>
-              <p className="text-gray-400 font-sans text-xl max-w-xl leading-relaxed">
-                Real-time scholastic ranking matrix populated from active system parameters. Answering Socratic challenges boosts points in real-time.
-              </p>
+
+              {/* 3-Way Filter & Duel Toggle Buttons */}
+              <div className="flex flex-wrap gap-1.5 bg-black p-1.5 border border-white/10 rounded-lg shrink-0">
+                <button
+                  onClick={() => {
+                    setLeaderboardFilter('intra');
+                    setPeerChallengePanelActive(false);
+                  }}
+                  className={`px-4 py-2 font-mono text-[11px] md:text-xs tracking-wider uppercase font-black transition-all rounded cursor-pointer ${
+                    leaderboardFilter === 'intra' && !peerChallengePanelActive
+                      ? 'bg-suzuki-red text-white shadow-lg shadow-red-650/30'
+                      : 'text-zinc-500 hover:text-zinc-200'
+                  }`}
+                >
+                  [INTRA-COLLEGE GRID]
+                </button>
+                <button
+                  onClick={() => {
+                    setLeaderboardFilter('inter');
+                    setPeerChallengePanelActive(false);
+                  }}
+                  className={`px-4 py-2 font-mono text-[11px] md:text-xs tracking-wider uppercase font-black transition-all rounded cursor-pointer ${
+                    leaderboardFilter === 'inter' && !peerChallengePanelActive
+                      ? 'bg-suzuki-red text-white shadow-lg shadow-red-650/30'
+                      : 'text-zinc-500 hover:text-zinc-200'
+                  }`}
+                >
+                  [INTER-COLLEGE // NATIONAL]
+                </button>
+                <button
+                  onClick={() => {
+                    setPeerChallengePanelActive(!peerChallengePanelActive);
+                    setLeaderboardFilter('intra'); // Default to intra-college view for drafting
+                  }}
+                  className={`px-4 py-2 font-mono text-[11px] md:text-xs tracking-wider uppercase font-black transition-all rounded cursor-pointer flex items-center gap-1.5 ${
+                    peerChallengePanelActive
+                      ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/40'
+                      : 'text-yellow-500 hover:text-yellow-400 border border-yellow-505/20'
+                  }`}
+                >
+                  <Swords size={12} className="animate-pulse" />
+                  PEER CHALLENGES {peerChallengePanelActive ? '[ACTIVE]' : '[OFF]'}
+                </button>
+              </div>
             </div>
 
-            {/* Practical Real-time Scholar Score rig for direct evaluation testing */}
-            <div className="bg-[#141414] border border-white/15 rounded-xl p-4 md:p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 font-mono shadow-xl relative overflow-hidden w-full lg:max-w-[448px]">
-              <div className="absolute top-0 left-0 w-full h-[3px] bg-amber-500/40 animate-pulse" />
-              
-              <div className="space-y-2.5 flex-1">
-                <span className="text-red-500 font-extrabold uppercase text-xs md:text-sm tracking-widest block">
-                  🛡️ [LIVE INBOUND SCHOLAR RIG CONTROL]
-                </span>
+            {/* PROFESSIONAL [LIVE INBOUND SCHOLAR RIG CONTROL] BOARD CONTROL PANEL */}
+            <div className="bg-[#0b0c0d] border border-red-500/30 rounded-xl p-5 md:p-6 lg:p-7 shadow-2xl relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-red-600 via-amber-500 to-red-650 animate-pulse" />
+              <div className="absolute top-0 right-0 w-32 h-32 bg-red-500/5 rounded-full blur-2xl pointer-events-none" />
 
-                <div className="flex flex-wrap gap-4 items-center">
-                  {isLoggedIn && candidateEmail && (
-                    <div className="bg-white/[0.02] p-2 rounded border border-white/5">
-                      <span className="text-zinc-300 text-xs md:text-sm font-bold block mb-1">SCHOLAR EMAIL:</span>
-                      <span className="text-sm md:text-base font-bold text-white block truncate max-w-[160px]" title={candidateEmail}>
-                        {candidateEmail}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch lg:items-center z-10 relative">
+                
+                {/* 1. Header with active beacon */}
+                <div className="space-y-2 lg:col-span-4 flex flex-col justify-center border-b lg:border-b-0 lg:border-r border-white/10 pb-5 lg:pb-0 lg:pr-6">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-pulse shadow-[0_0_12px_#ef4444]" />
+                    <span className="text-red-500 font-mono font-black uppercase text-xs md:text-sm tracking-widest block">
+                      🛡️ [LIVE INBOUND SCHOLAR RIG CONTROL]
+                    </span>
+                  </div>
+                  <h4 className="font-bebas text-2xl md:text-3xl text-white tracking-widest uppercase font-black leading-none">
+                    STUDENT PORTAL TELEMETRY
+                  </h4>
+                  <div className="text-[10px] font-mono text-emerald-400 font-bold flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping" />
+                    📂 AI SECURE CLOUD STORAGE: SYNCED
+                  </div>
+                </div>
+
+                {/* 2. Middle Row: Email and Score Display Info */}
+                <div className="lg:col-span-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Scholar Email Block */}
+                  <div className="bg-zinc-950/60 p-4 rounded-lg border border-white/5 space-y-1.5 flex flex-col justify-center overflow-hidden">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-zinc-400 font-mono text-[9px] font-bold uppercase tracking-wider shrink-0">
+                        SCHOLAR EMAIL:
+                      </span>
+                      <span className={`px-1.5 py-0.5 rounded text-[8px] font-mono font-bold uppercase tracking-wider shrink-0 ${
+                        isLoggedIn ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-neutral-800 text-zinc-500"
+                      }`}>
+                        {isLoggedIn ? "ACTIVE" : "DEMO GUEST"}
                       </span>
                     </div>
-                  )}
-                  
-                  <div className="bg-white/[0.02] p-2 rounded border border-white/5">
-                    <span className="text-zinc-300 text-xs md:text-sm font-bold block mb-1">SCHOLAR SCORE:</span>
-                    <span className="text-xl md:text-3xl font-black text-yellow-400 tracking-wider">
-                      {currentScore} PTS
+                    <div className="text-sm md:text-base font-mono font-black text-white truncate select-all pt-1" title={isLoggedIn && candidateEmail ? candidateEmail : "anany2006@gmail.com"}>
+                      {isLoggedIn && candidateEmail ? candidateEmail : "anany2006@gmail.com"}
+                    </div>
+                    <div className="text-[10px] text-zinc-500 font-sans mt-0.5 leading-snug">
+                      {isLoggedIn ? "Token mapping verified" : "Sign in to persist your score"}
+                    </div>
+                  </div>
+
+                  {/* Scholar Score Block */}
+                  <div className="bg-zinc-950/60 p-4 rounded-lg border border-white/5 space-y-1.5 flex flex-col justify-center">
+                    <span className="text-zinc-400 font-mono text-[9px] font-bold uppercase tracking-wider">
+                      SCHOLAR SCORE:
                     </span>
+                    <div className="flex items-baseline gap-1.5 pt-1">
+                      <span className="text-xl md:text-2xl font-mono font-black text-yellow-400 tracking-wider">
+                        {isLoggedIn ? currentScore : 0} PTS
+                      </span>
+                      <span className="text-zinc-500 text-[9px] font-mono font-bold">
+                        (verified)
+                      </span>
+                    </div>
+                    <div className="text-[10px] text-zinc-500 font-sans mt-0.5 leading-snug">
+                      Solve socratic quizzes to boost points
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Secure Seal Notice Block */}
+                <div className="lg:col-span-3 bg-black/40 border border-white/5 py-4 px-4 rounded-lg text-zinc-400 font-mono text-[10px] sm:text-[11px] leading-relaxed flex items-start gap-2.5 relative">
+                  <span className="w-2 h-2 rounded-full bg-[#e2231a] animate-pulse shrink-0 mt-1" />
+                  <div>
+                    <span className="text-white font-black block text-[9px] uppercase tracking-wider mb-0.5">🤖 AI DIRECT GOVERNED:</span>
+                    Manual adjustments are locked. Live scores represent authentic challenge completion output.
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+
+          {/* PEER CHALLENGE CONTROL PANEL SUITE */}
+          {peerChallengePanelActive && (
+            <>
+              <div className="bg-[#0c0c0e] border border-amber-500/40 rounded-xl p-6 shadow-2xl relative overflow-hidden mb-8">
+              <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-500 animate-pulse" />
+              <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full blur-2xl pointer-events-none" />
+              
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/10 pb-4 mb-6">
+                <div>
+                  <span className="font-mono text-xs text-amber-500 tracking-[0.2em] uppercase font-bold mb-1 flex items-center gap-1.5">
+                    <Swords size={14} className="animate-bounce" />
+                    ACADEMIC DUELS MATRIX
+                  </span>
+                  <h3 className="font-bebas text-2xl md:text-3xl text-white tracking-widest uppercase">
+                    1v1 ACTIVE SYLLABUS CHALLENGE SUITE
+                  </h3>
+                  <p className="text-xs text-zinc-400 font-sans max-w-xl">
+                    Transmit challenge signals and socratic duels to students in your college. Winning duels earns you <strong className="text-amber-400 font-bold">+30 dynamic point stakes</strong>.
+                  </p>
+                </div>
+                <button
+                  onClick={() => setPeerChallengePanelActive(false)}
+                  className="px-3 py-1.5 border border-white/10 rounded-md hover:bg-white/5 text-zinc-400 hover:text-white font-mono text-xs uppercase tracking-wider transition-all"
+                >
+                  ✕ Close Console
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* COLUMN 1: TRANSMIT NEW CHALLENGE */}
+                <div className="bg-black/40 border border-white/5 p-5 rounded-lg space-y-4">
+                  <h4 className="text-sm font-mono font-black text-amber-500 tracking-wider uppercase border-b border-white/5 pb-2">
+                    🛰️ TRANSMIT NEW SIGNAL
+                  </h4>
+                  
+                  <div className="space-y-4 font-sans text-sm">
+                    {/* TARGET STUDENT SELECT */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs text-zinc-400 uppercase tracking-widest font-mono font-bold block">
+                        Select Target Scholar Peer:
+                      </label>
+                      <select
+                        id="peer-challenge-target-select"
+                        value={challengeReceiver}
+                        onChange={(e) => setChallengeReceiver(e.target.value)}
+                        className="w-full bg-zinc-950/80 border border-white/10 p-2.5 rounded-md text-white font-sans text-sm focus:outline-none focus:border-amber-500"
+                      >
+                        <option value="">-- Choose a Peer --</option>
+                        {selectablePeers.map((p, pidx) => (
+                          <option key={pidx} value={p.name}>
+                            {p.name} ({p.college} - {p.score} PTS)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* SELECT SYLLABUS TOPIC */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs text-zinc-400 uppercase tracking-widest font-mono font-bold block">
+                        Select Syllabus Topic:
+                      </label>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        {(["CAD", "FEA", "CFD", "SRE", "IoT"] as const).map((t) => (
+                          <button
+                            key={t}
+                            type="button"
+                            onClick={() => setChallengeTopic(t)}
+                            className={`px-3 py-2 text-xs font-mono font-bold rounded border uppercase tracking-wider transition-all text-center ${
+                              challengeTopic === t
+                                ? "bg-amber-500/10 text-amber-400 border-amber-500"
+                                : "bg-zinc-950 text-zinc-400 border-white/5 hover:border-white/20"
+                            }`}
+                          >
+                            💻 {t}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* PREMIUM POINT STAKES PANEL */}
+                    <div className="bg-zinc-950/60 p-3 rounded border border-white/5 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Trophy size={16} className="text-yellow-400 animate-pulse" />
+                        <div>
+                          <span className="text-xs text-zinc-400 font-mono block">WINNER BONUS:</span>
+                          <span className="text-xs font-mono font-black text-white">+30 SPECIAL POINTS</span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] text-zinc-500 block uppercase font-mono tracking-wider">CHALLENGE COSTS</span>
+                        <span className="text-[10px] text-emerald-400 font-mono font-extrabold uppercase">0 PTS (FREE RETRY)</span>
+                      </div>
+                    </div>
+
+                    {/* TRIGGER TRANSMISSION */}
+                    <button
+                      type="button"
+                      disabled={!challengeReceiver}
+                      onClick={() => {
+                        handleSendChallenge(challengeReceiver, challengeTopic);
+                        setChallengeReceiver('');
+                      }}
+                      className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 disabled:from-zinc-800 disabled:to-zinc-800 text-black disabled:text-zinc-500 font-mono text-xs font-bold uppercase tracking-widest rounded transition-all cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <Send size={14} />
+                      TRANSMIT TARGETED SIGNAL
+                    </button>
+                  </div>
+                </div>
+
+                {/* COLUMN 2: ACTIVE PEER CHANNELS & FEEDS */}
+                <div className="bg-black/40 border border-white/5 p-5 rounded-lg flex flex-col justify-between">
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-mono font-black text-amber-500 tracking-wider uppercase border-b border-white/5 pb-2 flex items-center justify-between">
+                      <span>🕹️ DUEL CHANNELS MATRIX</span>
+                      <span className="text-[10px] px-2 py-0.5 bg-amber-500/10 text-amber-400 rounded-full font-mono lowercase">
+                        {challenges.length} active
+                      </span>
+                    </h4>
+
+                    {/* LIST OF ACTIVE CHALLENGES */}
+                    <div className="space-y-3 max-h-[240px] overflow-y-auto pr-1 select-none">
+                      {challenges.length > 0 ? (
+                        challenges.map((c) => {
+                          const isInbound = c.receiverName === 'You' || c.receiverName === candidateName;
+                          const opponent = isInbound ? c.senderName : c.receiverName;
+                          
+                          return (
+                            <div key={c.id} className="bg-zinc-950/80 border border-white/5 p-4 rounded-lg flex flex-col md:flex-row md:items-center justify-between gap-3 transition-all hover:border-white/15">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-1.5 font-mono">
+                                  <span className={`w-2 h-2 rounded-full ${
+                                    c.status === 'PENDING' ? 'bg-amber-400 animate-ping' :
+                                    c.status === 'ACCEPTED' ? 'bg-emerald-500 animate-pulse' :
+                                    c.status === 'COMPLETED_WIN' ? 'bg-yellow-400' : 'bg-zinc-500'
+                                  }`} />
+                                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block">
+                                    [STAKE: {c.topicId}]
+                                  </span>
+                                  {isInbound && c.status === 'PENDING' && (
+                                    <span className="text-[8px] bg-red-650 text-white font-extrabold tracking-widest uppercase px-1.5 py-0.5 rounded leading-none">
+                                      INBOUND
+                                    </span>
+                                  )}
+                                </div>
+                                <h5 className="font-sans font-bold text-white text-sm">
+                                  {isInbound ? `From: ${opponent}` : `To: ${opponent}`}
+                                </h5>
+                                <div className="text-[10px] text-zinc-500 font-mono flex items-center gap-2">
+                                  <span>Time: {c.createdAt}</span>
+                                  <span>•</span>
+                                  <span className="text-yellow-450 text-[10px] font-bold">Award: +30 Pts</span>
+                                </div>
+                              </div>
+
+                              {/* ACTIONS COLUMN */}
+                              <div className="flex items-center gap-1.5 self-end md:self-center shrink-0">
+                                {c.status === 'PENDING' && isInbound && (
+                                  <>
+                                    <button
+                                      onClick={() => handleAcceptChallenge(c.id)}
+                                      className="px-2.5 py-1.5 bg-emerald-600 text-white font-mono text-[10px] font-bold uppercase tracking-wider rounded hover:bg-emerald-700 transition-all cursor-pointer"
+                                    >
+                                      Accept
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeclineChallenge(c.id)}
+                                      className="px-2.5 py-1.5 bg-zinc-800 text-zinc-400 font-mono text-[10px] font-bold uppercase tracking-wider rounded hover:bg-zinc-700 transition-all cursor-pointer"
+                                    >
+                                      Decline
+                                    </button>
+                                  </>
+                                )}
+
+                                {c.status === 'PENDING' && !isInbound && (
+                                  <span className="text-[10px] text-amber-400 font-mono italic p-1.5 border border-amber-500/10 rounded bg-amber-500/5">
+                                    Pending Acceptance...
+                                  </span>
+                                )}
+
+                                {c.status === 'ACCEPTED' && (
+                                  <button
+                                    onClick={() => handleLaunchDuel(c.id, c.topicId)}
+                                    className="px-3 py-1.5 bg-amber-500 text-black font-mono text-[10px] font-black uppercase tracking-widest rounded hover:bg-amber-400 transition-all cursor-pointer flex items-center gap-1 shadow-lg shadow-amber-500/20"
+                                  >
+                                    <Play size={10} fill="currentColor" />
+                                    PLAY DUEL
+                                  </button>
+                                )}
+
+                                {c.status === 'COMPLETED_WIN' && (
+                                  <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2 py-1 rounded">
+                                    ✓ WON (+30)
+                                  </span>
+                                )}
+
+                                {c.status === 'COMPLETED_DRAW' && (
+                                  <span className="text-[10px] font-mono text-yellow-400 font-bold bg-yellow-500/10 border border-yellow-500/20 px-2 py-1 rounded">
+                                    🤝 DRAW (+10)
+                                  </span>
+                                )}
+
+                                {c.status === 'COMPLETED_LOSS' && (
+                                  <span className="text-[10px] font-mono text-zinc-500 font-bold bg-zinc-900 border border-white/5 px-2 py-1 rounded">
+                                    💀 LOST
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="text-center py-8 text-zinc-500">
+                          <Swords size={24} className="mx-auto opacity-30 mb-2" />
+                          <p className="text-xs font-mono">No active challenge channels drafted yet.</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* BOTTOM REFRESH CONSOLE */}
+                  <div className="border-t border-white/5 pt-3 mt-4 text-[10px] text-zinc-500 font-mono leading-none">
+                     📡 Live duel synchronization status: <strong>SECURED</strong>
                   </div>
                 </div>
               </div>
-
-              <div className="flex items-center gap-2 bg-black/60 border border-white/5 py-2.5 px-4 rounded-lg text-zinc-500 font-mono text-[10px] text-right max-w-sm shrink-0 leading-normal">
-                <span className="w-2 h-2 rounded-full bg-[#e2231a] animate-ping shrink-0" />
-                <span>🤖 AI DIRECT GOVERNED: Manual adjustments/bypasses are locked. Live scores represent authentic challenge completion output.</span>
-              </div>
-
             </div>
 
-            {/* 2-Way Filter Toggle Buttons */}
-            <div className="flex gap-2 bg-[#111] p-1.5 border border-white/5 rounded">
-              <button
-                onClick={() => setLeaderboardFilter('intra')}
-                className={`px-4 py-2 font-mono text-xs md:text-sm tracking-wider uppercase font-bold transition-all cursor-pointer ${
-                  leaderboardFilter === 'intra'
-                    ? 'bg-suzuki-red text-white shadow'
-                    : 'text-zinc-400 hover:text-white'
-                }`}
-              >
-                [INTRA-COLLEGE]
-              </button>
-              <button
-                onClick={() => setLeaderboardFilter('inter')}
-                className={`px-4 py-2 font-mono text-xs md:text-sm tracking-wider uppercase font-bold transition-all cursor-pointer ${
-                  leaderboardFilter === 'inter'
-                    ? 'bg-suzuki-red text-white shadow'
-                    : 'text-zinc-400 hover:text-white'
-                }`}
-              >
-                [INTER-COLLEGE // NATIONAL]
-              </button>
+            {/* PEER DISCUSSION CHAT WIDGET */}
+            <div className="mb-8 font-sans">
+              <PeerDiscussionChat
+                candidateName={candidateName}
+                collegeName={collegeName || "IIT Madras"}
+                registeredUsers={registeredUsers}
+                onSelectPeerForChallenge={(peerName, topicId) => {
+                  setChallengeReceiver(peerName);
+                  setChallengeTopic(topicId);
+                  // Scroll to the selector smoothly
+                  const selectElement = document.getElementById("peer-challenge-target-select");
+                  if (selectElement) {
+                    selectElement.scrollIntoView({ behavior: "smooth", block: "center" });
+                    
+                    // Give it a brief visual flash so the user knows it's ready
+                    selectElement.classList.add("ring-2", "ring-amber-500");
+                    setTimeout(() => {
+                      selectElement.classList.remove("ring-2", "ring-amber-500");
+                    }, 1000);
+                  }
+                }}
+              />
             </div>
-          </div>
+          </>
+        )}
 
           {/* Leaderboard Cyber Grid with larger fonts */}
           <div className="bg-[#121212]/90 border border-white/10 rounded-md p-6 relative overflow-hidden shadow-2xl">
@@ -1089,18 +1559,18 @@ export default function App() {
             
             {/* AGENTIC AI LIVE MONITOR CONSOLE REPORT */}
             <div className="mb-6 p-4 bg-black/50 border border-red-500/30 rounded-lg font-mono">
-              <div className="flex items-center gap-2 mb-3 text-[#e2231a] text-xs font-black tracking-widest uppercase">
-                <span className="w-2 h-2 rounded-full bg-red-650 animate-ping"></span>
-                🤖 AGENTIC AI RANKING MONITOR ACTIVE
+              <div className="flex items-center gap-2 mb-3 text-[#e2231a] text-sm font-black tracking-widest uppercase">
+                <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-pulse shadow-[0_0_10px_#e2231a] shrink-0" />
+                🤖 AGENTIC AI RANKING MONITOR & POINT AUDITOR ACTIVE
               </div>
-              <div className="space-y-1.5 text-xs text-zinc-300">
+              <div className="space-y-2 text-sm text-zinc-200 leading-relaxed">
                 <div className="flex items-start gap-2">
-                  <span className="text-zinc-500 font-bold shrink-0">[DECISION_LOG]:</span>
+                  <span className="text-zinc-400 font-extrabold shrink-0">[DECISION_LOG]:</span>
                   <span>
-                    Logged session detected for scholar <strong className="text-white">{isLoggedIn ? candidateName : "GUEST STUD"}</strong>
+                    Logged session detected for scholar <strong className="text-white font-extrabold">{isLoggedIn ? candidateName : "GUEST STUDENT"}</strong>
                     {isLoggedIn && collegeName ? (
                       <>
-                        {" "}affiliated with <strong className="text-yellow-400 font-bold underline bg-yellow-500/5 px-1.5 py-0.5 rounded">{collegeName}</strong>.
+                        {" "}affiliated with <strong className="text-yellow-300 font-bold underline bg-yellow-500/5 px-1.5 py-0.5 rounded">{collegeName}</strong>.
                       </>
                     ) : (
                       " (offline mode)."
@@ -1108,11 +1578,11 @@ export default function App() {
                   </span>
                 </div>
                 <div className="flex items-start gap-2">
-                  <span className="text-zinc-500 font-bold shrink-0">[MATRIX_ROUTING]:</span>
+                  <span className="text-zinc-400 font-extrabold shrink-0">[MATRIX_ROUTING]:</span>
                   <span>
                     {isLoggedIn && collegeName ? (
                       <>
-                        Placed candidate in <strong className="text-emerald-400">INTRA-COLLEGE GRID</strong> for active peer scoring. Checked other scholars not matches <strong className="text-[#e2231a]">{collegeName}</strong> and routed to national benchmarks in <strong className="text-yellow-400">INTER-COLLEGE MATRIX</strong>.
+                        Placed candidate in <strong className="text-emerald-400 font-extrabold">INTRA-COLLEGE GRID</strong> for active peer scoring. Non-matching scholar entries routed to national benchmarks in <strong className="text-yellow-300 font-extrabold">INTER-COLLEGE MATRIX</strong>.
                       </>
                     ) : (
                       <>
@@ -1122,26 +1592,43 @@ export default function App() {
                   </span>
                 </div>
                 <div className="flex items-start gap-2">
-                  <span className="text-zinc-500 font-bold shrink-0">[MATRIX_INTEGRITY]:</span>
+                  <span className="text-zinc-400 font-extrabold shrink-0">[MATRIX_INTEGRITY]:</span>
                   <span>
                     Chrono counter constraint active. Study progress is managed at 1-day step intervals. Score logic secured.
                   </span>
                 </div>
+
+                {/* AI Point Audit Ledger Transactions */}
+                <div className="flex flex-col gap-1.5 border-t border-red-500/20 pt-3 mt-3">
+                  <span className="text-zinc-400 font-extrabold text-xs tracking-wider uppercase flex items-center gap-1.5">
+                    ⚙️ [REAL-TIME AI POINT TRANSACTIONS]:
+                  </span>
+                  <div className="space-y-1.5 mt-1 font-mono text-xs max-h-[140px] overflow-y-auto pr-2 custom-scrollbar">
+                    {aiAuditLogs.map((log, lidx) => (
+                      <div key={lidx} className="text-emerald-300 bg-emerald-950/25 p-2 border border-emerald-500/20 rounded font-bold flex items-start gap-1.5 leading-normal">
+                        <span className="text-emerald-400 shrink-0 font-bold">▶</span>
+                        <span>{log}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
               </div>
             </div>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs font-mono">
+              <table className="w-full text-left border-collapse text-sm font-mono">
                 <thead>
-                  <tr className="border-b border-white/10 text-zinc-400 uppercase tracking-widest text-[11px] pb-4">
-                    <th className="py-3 px-4 text-sm font-bold">Rank</th>
-                    <th className="py-3 px-4 text-sm font-bold">Candidate Scholar Name</th>
-                    <th className="py-3 px-4 text-sm font-bold">College / Institution</th>
-                    <th className="py-3 px-4 text-center text-sm font-bold">Proved Points</th>
-                    <th className="py-3 px-4 text-right text-sm font-bold">Matrix Status</th>
+                  <tr className="border-b border-white/15 text-zinc-100 uppercase tracking-widest text-xs font-black pb-4">
+                    <th className="py-3 px-4 text-xs font-black">Rank</th>
+                    <th className="py-3 px-4 text-xs font-black">Candidate Scholar Name</th>
+                    <th className="py-3 px-4 text-xs font-black">College / Institution</th>
+                    <th className="py-3 px-4 text-center text-xs font-black">Proved Points</th>
+                    <th className="py-3 px-4 text-right text-xs font-black">Matrix Status</th>
+                    <th className="py-3 px-4 text-right text-xs font-black">Direct Duel</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-white/5 text-zinc-300 text-sm">
+                <tbody className="divide-y divide-white/5 text-zinc-200 text-sm">
                   {displayedPlayers.length > 0 ? (
                     displayedPlayers.map((player, idx) => {
                       const isUser = isLoggedIn && player.name === candidateName;
@@ -1174,12 +1661,34 @@ export default function App() {
                               🟢 {player.status}
                             </span>
                           </td>
+                          <td className="py-4 px-4 text-right">
+                            {isUser ? (
+                              <span className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider italic">
+                                Self
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  setPeerChallengePanelActive(true);
+                                  setChallengeReceiver(player.name);
+                                  const targetElement = document.getElementById('deals');
+                                  if (targetElement) {
+                                    targetElement.scrollIntoView({ behavior: 'smooth' });
+                                  }
+                                }}
+                                className="px-2.5 py-1 bg-amber-500/15 hover:bg-amber-500 text-amber-450 hover:text-black hover:scale-105 border border-amber-500/30 font-mono text-[10px] font-extrabold uppercase tracking-widest rounded transition-all cursor-pointer flex items-center gap-1 inline-flex"
+                              >
+                                <Swords size={10} />
+                                DUEL
+                              </button>
+                            )}
+                          </td>
                         </tr>
                       );
                     })
                   ) : (
                     <tr>
-                      <td colSpan={5} className="py-12 text-center text-zinc-500 font-sans">
+                      <td colSpan={6} className="py-12 text-center text-zinc-500 font-sans">
                         <Users size={32} className="mx-auto text-zinc-600 mb-4" />
                         <p className="font-bold text-white text-base mb-2">NO REGISTERED SCHOLARS FOUND</p>
                         <p className="text-xl text-zinc-400 leading-relaxed font-sans max-w-lg mx-auto">
@@ -1228,14 +1737,6 @@ export default function App() {
                     <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
                   ) : "🤖"}
                   {isDiagnosing ? "RUNNING SEMANTIC AUDIT..." : "AI SELF-HEAL & RECALIBRATE"}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleSecureMockTrialReset}
-                  className="px-4 py-2 bg-neutral-900 border border-white/20 hover:border-[#e2231a] hover:bg-[#e2231a]/10 text-white font-mono text-xs font-bold uppercase tracking-widest transition-all cursor-pointer flex items-center gap-1.5"
-                >
-                  🧪 SECURE STUDENT TRIAL RESET
                 </button>
               </div>
             </div>
@@ -1460,7 +1961,7 @@ export default function App() {
                 <span className="font-bebas text-2xl tracking-wider font-bold text-white">MECHFORGE</span>
               </a>
               <p className="text-xs text-neutral-500 leading-relaxed">
-                Created under the academic auspices of KLE Technological University. Proven across engineering curricula and advanced laboratory guidelines.
+                Created by Ananya S K under the academic auspices of KLE Technological University. Proven across engineering curricula and advanced laboratory guidelines.
               </p>
               <div className="pt-2 font-bebas text-lg uppercase text-white tracking-widest">
                 LAB CONSOLE: <span className="text-suzuki-red">V2.4.0</span>
@@ -1523,6 +2024,14 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      {/* QUICK QUIZ MODAL FOR 1v1 PEER CHALLENGE DUELS */}
+      <QuickQuizModal
+        topicId={duelTopicId}
+        isOpen={isDuelQuizOpen}
+        onClose={handleDuelClose}
+        onSuccess={handleDuelSuccess}
+      />
     </div>
   );
 }

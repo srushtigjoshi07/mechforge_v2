@@ -1,8 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
+
+// Highly-stable, React 19 compatible forwardRef mock components for Framer Motion to bypass runtime static flag crashes and freeze errors
+const motion = {
+  div: React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement> & { initial?: any; animate?: any; exit?: any; transition?: any; whileHover?: any; whileTap?: any }>(({ children, className, initial, animate, exit, transition, whileHover, whileTap, ...props }: any, ref) => (
+    <div ref={ref} className={className} {...props}>{children}</div>
+  )),
+  p: React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement> & { initial?: any; animate?: any; exit?: any; transition?: any }>(({ children, className, initial, animate, exit, transition, ...props }: any, ref) => (
+    <p ref={ref} className={className} {...props}>{children}</p>
+  )),
+  button: React.forwardRef<HTMLButtonElement, React.ButtonHTMLAttributes<HTMLButtonElement> & { initial?: any; animate?: any; exit?: any; transition?: any; whileHover?: any; whileTap?: any }>(({ children, className, initial, animate, exit, transition, whileHover, whileTap, ...props }: any, ref) => (
+    <button ref={ref} className={className} {...props}>{children}</button>
+  ))
+};
+const AnimatePresence: React.FC<{ children: React.ReactNode; mode?: string }> = ({ children }) => <>{children}</>;
 import { EXTENSIBLE_FORMULAS } from '../data';
 import { getQuestionsForModule } from '../utils/questionGenerator';
-import { Check, Info, Sparkles, Send, BrainCircuit, Play, Pause, RefreshCw, Layers, ShieldAlert, CheckCircle, Award, Hourglass, Lock, Unlock, HelpCircle, Target } from 'lucide-react';
+import { Check, Info, Sparkles, Send, BrainCircuit, Play, Pause, RefreshCw, Layers, ShieldAlert, CheckCircle, Award, Hourglass, Lock, Unlock, HelpCircle, Target, ArrowRight } from 'lucide-react';
 import ProblemDiagram from './ProblemDiagram';
+import BadgeInventory from './BadgeInventory';
 
 
 const GRAD2_QUESTION_IMAGES: Record<number, { url: string; label: string }> = {
@@ -22,6 +37,7 @@ interface BikeGalleryProps {
   onSelectedForEmi?: (bikeId: string) => void;
   onSelectedForRide?: (bikeId: string) => void;
   candidateName: string;
+  candidateEmail?: string;
   collegeName: string;
   currentScore: number;
   setScore: React.Dispatch<React.SetStateAction<number>>;
@@ -29,21 +45,261 @@ interface BikeGalleryProps {
   setActiveTrackID: (track: 'GRADE_01' | 'GRADE_02' | 'GRADE_03' | null) => void;
   dailyStreak?: number;
   setDailyStreak?: React.Dispatch<React.SetStateAction<number>>;
+  onStreakTrigger?: () => void;
 }
 
 export default function BikeGallery({
   onSelectedForEmi,
   onSelectedForRide,
   candidateName,
+  candidateEmail = '',
   collegeName,
   currentScore,
   setScore,
   activeTrackID,
   setActiveTrackID,
-  dailyStreak,
-  setDailyStreak
+  dailyStreak = 0,
+  setDailyStreak,
+  onStreakTrigger
 }: BikeGalleryProps) {
   const [activeGrade, setActiveGrade] = useState<'grade1' | 'grade2' | 'grade3'>('grade1');
+
+  // File input ref for selecting draft files
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // States for synchronized drafts (keyed by composite question key: module_id-q_id)
+  const [syncedDraftFiles, setSyncedDraftFiles] = useState<Record<string, {
+    name: string;
+    size: string;
+    type: string;
+    preview: string | null;
+    timestamp: string;
+  }>>(() => {
+    try {
+      const saved = localStorage.getItem('mechSyncedDraftFiles');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const [draftSyncProgress, setDraftSyncProgress] = useState<Record<string, number>>({});
+  const [draftSyncingLabel, setDraftSyncingLabel] = useState<Record<string, string>>({});
+  const [isDragOverDraft, setIsDragOverDraft] = useState<Record<string, boolean>>({});
+
+  const startDraftSyncSimulation = (file: File, key: string) => {
+    const isImage = file.type.startsWith('image/');
+    const isPdf = file.type === 'application/pdf';
+
+    const steps = [
+      "Configuring ingestion channel...",
+      isImage ? "Decoding pixel arrays for vectors..." : isPdf ? "Parsing structural FBD documents..." : "Reading CAD file geometries...",
+      "Resolving node and link entities...",
+      "Cross-referencing telemetry angles with force polygons...",
+      "Matching kinematic free-body constraints...",
+      "Injecting alignment coordinates...",
+      "Synchronized in-app evaluation database!",
+    ];
+
+    let progress = 0;
+    setDraftSyncProgress(prev => ({ ...prev, [key]: 1 }));
+    setDraftSyncingLabel(prev => ({ ...prev, [key]: steps[0] }));
+
+    const interval = setInterval(() => {
+      progress += Math.floor(Math.random() * 15) + 8;
+      if (progress >= 100) {
+        progress = 100;
+        clearInterval(interval);
+
+        if (isImage) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const previewUrl = e.target?.result as string || null;
+            const updatedDrafts = {
+              ...syncedDraftFiles,
+              [key]: {
+                name: file.name,
+                size: (file.size / 1024).toFixed(1) + ' KB',
+                type: file.type,
+                preview: previewUrl,
+                timestamp: new Date().toLocaleTimeString(),
+              }
+            };
+            setSyncedDraftFiles(updatedDrafts);
+            localStorage.setItem('mechSyncedDraftFiles', JSON.stringify(updatedDrafts));
+            setDraftSyncProgress(prev => {
+              const copy = { ...prev };
+              delete copy[key];
+              return copy;
+            });
+            setDraftSyncingLabel(prev => {
+              const copy = { ...prev };
+              delete copy[key];
+              return copy;
+            });
+          };
+          reader.readAsDataURL(file);
+        } else {
+          const updatedDrafts = {
+            ...syncedDraftFiles,
+            [key]: {
+              name: file.name,
+              size: (file.size / 1024).toFixed(1) + ' KB',
+              type: file.type,
+              preview: null,
+              timestamp: new Date().toLocaleTimeString(),
+            }
+          };
+          setSyncedDraftFiles(updatedDrafts);
+          localStorage.setItem('mechSyncedDraftFiles', JSON.stringify(updatedDrafts));
+          setDraftSyncProgress(prev => {
+            const copy = { ...prev };
+            delete copy[key];
+            return copy;
+          });
+          setDraftSyncingLabel(prev => {
+            const copy = { ...prev };
+            delete copy[key];
+            return copy;
+          });
+        }
+      } else {
+        setDraftSyncProgress(prev => ({ ...prev, [key]: progress }));
+        const stepIdx = Math.min(Math.floor((progress / 100) * steps.length), steps.length - 1);
+        setDraftSyncingLabel(prev => ({ ...prev, [key]: steps[stepIdx] }));
+      }
+    }, 100);
+  };
+
+  const handleDraftFileSelect = (e: React.ChangeEvent<HTMLInputElement>, key: string) => {
+    if (e.target.files && e.target.files[0]) {
+      startDraftSyncSimulation(e.target.files[0], key);
+    }
+  };
+
+  const handleDraftFileDrop = (e: React.DragEvent<HTMLDivElement>, key: string) => {
+    e.preventDefault();
+    setIsDragOverDraft(prev => ({ ...prev, [key]: false }));
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      startDraftSyncSimulation(e.dataTransfer.files[0], key);
+    }
+  };
+
+  const removeSyncedDraft = (key: string) => {
+    const updatedDrafts = { ...syncedDraftFiles };
+    delete updatedDrafts[key];
+    setSyncedDraftFiles(updatedDrafts);
+    localStorage.setItem('mechSyncedDraftFiles', JSON.stringify(updatedDrafts));
+  };
+
+  // Custom non-blocking modal alert/confirm message state
+  const [appAlert, setAppAlert] = useState<{
+    text: string;
+    type?: 'info' | 'success' | 'warning' | 'error';
+    onConfirm?: () => void;
+    isConfirm?: boolean;
+  } | null>(null);
+
+  // AI Check-in Engine States
+  const [isCheckingIn, setIsCheckingIn] = useState(false);
+  const [checkInMsg, setCheckInMsg] = useState<string | null>(null);
+  const [checkInStatus, setCheckInStatus] = useState<'success' | 'locked' | 'error' | null>(null);
+  const [countdownStr, setCountdownStr] = useState<string>('Ready to Claim');
+  const [isTimerReady, setIsTimerReady] = useState<boolean>(true);
+
+  useEffect(() => {
+    const userEmailKey = (candidateEmail || localStorage.getItem('mechUserEmail') || '').toLowerCase().trim();
+    if (!userEmailKey) {
+      setCountdownStr('Ready to Claim');
+      setIsTimerReady(true);
+      return;
+    }
+
+    const updateTimer = () => {
+      const storedTimeStr = localStorage.getItem(`mechNextCheckInAvailable_${userEmailKey}`);
+      if (!storedTimeStr) {
+        setCountdownStr('Ready to Claim');
+        setIsTimerReady(true);
+        return;
+      }
+
+      const targetTime = new Date(storedTimeStr).getTime();
+      const diff = targetTime - Date.now();
+
+      if (diff <= 0) {
+        setCountdownStr('Ready to Claim');
+        setIsTimerReady(true);
+      } else {
+        setIsTimerReady(false);
+        const h = Math.floor(diff / (1000 * 60 * 60));
+        const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const s = Math.floor((diff % (1000 * 60)) / 1000);
+        setCountdownStr(`${h}h ${m}m ${s}s left`);
+      }
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+
+    return () => clearInterval(interval);
+  }, [candidateEmail]);
+
+  const handleDailyCheckIn = async () => {
+    const email = candidateEmail || localStorage.getItem('mechUserEmail') || '';
+    if (!email) {
+      alert("⚠️ AUTHENTICATION REQUIRED: Please register or log in using the Boot Console below first to start tracking your daily study streak!");
+      return;
+    }
+
+    const emailKey = email.toLowerCase().trim();
+    const lastCheckInTime = localStorage.getItem(`mechLastCheckInTime_${emailKey}`) || '';
+
+    setIsCheckingIn(true);
+    setCheckInMsg(null);
+    setCheckInStatus(null);
+
+    try {
+      const response = await fetch('/api/check-in', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          lastCheckInTime,
+          currentStreak: dailyStreak,
+          clientTime: new Date().toISOString()
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.allowed) {
+        if (setDailyStreak) {
+          setDailyStreak(data.newStreak);
+        }
+        if (onStreakTrigger) {
+          onStreakTrigger();
+        }
+        localStorage.setItem(`mechDailyStreak_${emailKey}`, data.newStreak.toString());
+        localStorage.setItem(`mechLastCheckInTime_${emailKey}`, data.lastCheckInTime);
+        localStorage.setItem(`mechNextCheckInAvailable_${emailKey}`, data.nextCheckInAvailableAt);
+        setCheckInStatus('success');
+        setCheckInMsg(data.message);
+      } else {
+        setCheckInStatus('locked');
+        setCheckInMsg(data.message);
+        if (data.nextCheckInAvailableAt) {
+          localStorage.setItem(`mechNextCheckInAvailable_${emailKey}`, data.nextCheckInAvailableAt);
+        }
+      }
+    } catch (err) {
+      console.error("Check-in request failed:", err);
+      setCheckInStatus('error');
+      setCheckInMsg("⚠️ Pipeline Connection Fault. Could not establish communication with MechForge AI check-in gateway.");
+    } finally {
+      setIsCheckingIn(false);
+    }
+  };
   
   // Timer Speedup offset simulation (milliseconds)
   const [timeOffset, setTimeOffset] = useState<number>(0);
@@ -78,6 +334,16 @@ export default function BikeGallery({
   const [completedAnswers, setCompletedAnswers] = useState<Record<string, boolean>>(() => {
     try {
       const saved = localStorage.getItem('mechCompletedAnswers');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  // Keep a record of whether the question was answered correctly (composite keys: 'module_id-q_id')
+  const [correctlyAnswered, setCorrectlyAnswered] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('mechCorrectlyAnswered');
       return saved ? JSON.parse(saved) : {};
     } catch {
       return {};
@@ -163,6 +429,33 @@ export default function BikeGallery({
     return localStorage.getItem('mechUnlimitedAccess') === 'true';
   });
 
+  // Dynamic seed overrides for each syllabus tier (Level 1, Level 2, Level 3)
+  const [levelQuestionSeeds, setLevelQuestionSeeds] = useState<Record<string, number>>(() => {
+    try {
+      const saved = localStorage.getItem('mechLevelQuestionSeeds');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  // Combined questions with level-specific Seeds to allow refreshing questions on reset
+  const getQuestionsForModuleWithSeeds = (moduleId: string, elapsedDays: number) => {
+    const seed1 = levelQuestionSeeds[`${moduleId}-1`] || 0;
+    const seed2 = levelQuestionSeeds[`${moduleId}-2`] || 0;
+    const seed3 = levelQuestionSeeds[`${moduleId}-3`] || 0;
+
+    const qList1 = getQuestionsForModule(moduleId, elapsedDays + seed1);
+    const qList2 = getQuestionsForModule(moduleId, elapsedDays + seed2);
+    const qList3 = getQuestionsForModule(moduleId, elapsedDays + seed3);
+
+    return [
+      ...qList1.slice(0, 7),
+      ...qList2.slice(7, 14),
+      ...qList3.slice(14, 21)
+    ];
+  };
+
   // Get active elapsed study days of a module (1-indexed)
   const getVirtualElapsedDays = (moduleId: string) => {
     const unlockTime = unlockedModules[moduleId];
@@ -177,52 +470,44 @@ export default function BikeGallery({
     return Math.max(1, standardElapsedDays + extraSimDays + 1);
   };
 
+  const getStageCompleted = (moduleId: string, stage: number) => {
+    const qIds = stage === 1 ? [1,2,3,4,5,6,7] : stage === 2 ? [8,9,10,11,12,13,14] : [15,16,17,18,19,20,21];
+    return qIds.every(qid => completedAnswers[`${moduleId}-${qid}`]);
+  };
+
+  const getStagePassed = (moduleId: string, stage: number) => {
+    const qIds = stage === 1 ? [1,2,3,4,5,6,7] : stage === 2 ? [8,9,10,11,12,13,14] : [15,16,17,18,19,20,21];
+    const correctCount = qIds.filter(qid => correctlyAnswered[`${moduleId}-${qid}`]).length;
+    return correctCount >= 4; // At least 50% (4 out of 7)
+  };
+
   // Determine chronological level progress metrics (day 1, day 2, day 3 locks) & accuracy-driven bypass keys
   const checkDayUnlockStatus = (moduleId: string) => {
     const currentElapsedDays = getVirtualElapsedDays(moduleId);
 
-    // Day 1 Basics accuracy metrics: Q1 to Q7 (7 questions)
-    const day1Questions = [1, 2, 3, 4, 5, 6, 7];
-    const day1Completed = day1Questions.every(qid => completedAnswers[`${moduleId}-${qid}`]);
-    const day1Perfect = day1Completed && day1Questions.every(qid => {
-      const key = `${moduleId}-${qid}`;
-      return (mistakeCounter[key] || 0) === 0 && !solutionsRevealed[key];
-    });
+    const level1Completed = getStageCompleted(moduleId, 1);
+    const level1Passed = getStagePassed(moduleId, 1);
 
-    // Day 2 Intermediate accuracy metrics: Q8 to Q14 (7 questions)
-    const day2Questions = [8, 9, 10, 11, 12, 13, 14];
-    const day2Completed = day2Questions.every(qid => completedAnswers[`${moduleId}-${qid}`]);
-    const day2Perfect = day2Completed && day2Questions.every(qid => {
-      const key = `${moduleId}-${qid}`;
-      return (mistakeCounter[key] || 0) === 0 && !solutionsRevealed[key];
-    });
+    const level2Completed = getStageCompleted(moduleId, 2);
+    const level2Passed = getStagePassed(moduleId, 2);
 
-    // Solve 21 questions of module logic
-    const questions = getQuestionsForModule(moduleId, currentElapsedDays);
-
-    const allSolved = questions.every(q => completedAnswers[`${moduleId}-${q.id}`]);
-
-    let activeUnlockedDay = unlimitedAccess ? 3 : currentElapsedDays;
-    let day1Bypassed = false;
-    let day2Bypassed = false;
-
-    if (!unlimitedAccess) {
-      if (day1Perfect) {
-        activeUnlockedDay = Math.max(activeUnlockedDay, 2);
-        day1Bypassed = true;
-      }
-      if (day2Perfect && activeUnlockedDay >= 2) {
-        activeUnlockedDay = Math.max(activeUnlockedDay, 3);
-        day2Bypassed = true;
+    let activeUnlockedDay = 1;
+    if (level1Completed && level1Passed) {
+      activeUnlockedDay = 2;
+      if (level2Completed && level2Passed) {
+        activeUnlockedDay = 3;
       }
     }
 
+    const questions = getQuestionsForModuleWithSeeds(moduleId, currentElapsedDays);
+    const allSolved = questions.every(q => completedAnswers[`${moduleId}-${q.id}`]);
+
     return {
       activeUnlockedDay,
-      day1Perfect,
-      day2Perfect,
-      day1Bypassed,
-      day2Bypassed,
+      day1Perfect: level1Passed,
+      day2Perfect: level2Passed,
+      day1Bypassed: level1Passed,
+      day2Bypassed: level2Passed,
       currentElapsedDays,
       allSolved
     };
@@ -239,24 +524,150 @@ export default function BikeGallery({
       return { locked: false, reason: '', dayRequired: 1 };
     } else if (qId >= 8 && qId <= 14) {
       const locked = activeUnlockedDay < 2;
+      let reason = '';
+      if (locked) {
+        if (!getStageCompleted(moduleId, 1)) {
+          const solvedCount = [1,2,3,4,5,6,7].filter(qid => completedAnswers[`${moduleId}-${qid}`]).length;
+          reason = `Level 2 is locked. Level 1 is incomplete (Completed: ${solvedCount}/7). Complete all previous 7 Level 1 questions first!`;
+        } else {
+          reason = `Level 2 is locked. You did not achieve the required passing score of 50% in Level 1.`;
+        }
+      }
       return {
         locked,
-        reason: locked ? 'Level 2 Syllabus-Oriented is locked. Complete all Level 1 questions perfectly to bypass instantly, or simulate timeline advancement!' : '',
+        reason,
         dayRequired: 2
       };
     } else {
       // qId >= 15
       const locked = activeUnlockedDay < 3;
+      let reason = '';
+      if (locked) {
+        if (!getStageCompleted(moduleId, 2)) {
+          const solvedCount = [8,9,10,11,12,13,14].filter(qid => completedAnswers[`${moduleId}-${qid}`]).length;
+          reason = `Level 3 is locked. Level 2 is incomplete (Completed: ${solvedCount}/7). Complete all previous Level 2 questions first!`;
+        } else {
+          reason = `Level 3 is locked. You did not achieve the required passing score of 50% in Level 2.`;
+        }
+      }
       return {
         locked,
-        reason: locked ? 'Level 3 Real-Time Application is locked. Complete all Level 2 questions perfectly to bypass instantly, or simulate timeline advancement!' : '',
+        reason,
         dayRequired: 3
       };
     }
   };
 
+  // Get detailed reasons for lock and instructions to reset
+  const getDetailedLockExplanation = (moduleId: string, qId: number) => {
+    if (qId >= 8 && qId <= 14) {
+      const qIds = [1, 2, 3, 4, 5, 6, 7];
+      const solvedCount = qIds.filter(id => completedAnswers[`${moduleId}-${id}`]).length;
+      const correctCount = qIds.filter(id => correctlyAnswered[`${moduleId}-${id}`]).length;
+      const solvedAll = solvedCount === 7;
+      const passed = correctCount >= 4;
+
+      if (!solvedAll) {
+        return {
+          reason: `Locked because you have only completed ${solvedCount} of 7 Level 1 (Basics) questions.`,
+          levelToReset: 1,
+          solvedCount,
+          correctCount,
+          passed
+        };
+      } else if (!passed) {
+        return {
+          reason: `Locked because your Level 1 score was only ${correctCount}/7 (less than 50% passing threshold).`,
+          levelToReset: 1,
+          solvedCount,
+          correctCount,
+          passed
+        };
+      }
+    } else if (qId >= 15) {
+      const qIds = [8, 9, 10, 11, 12, 13, 14];
+      const solvedCount = qIds.filter(id => completedAnswers[`${moduleId}-${id}`]).length;
+      const correctCount = qIds.filter(id => correctlyAnswered[`${moduleId}-${id}`]).length;
+      const solvedAll = solvedCount === 7;
+      const passed = correctCount >= 4;
+
+      if (!solvedAll) {
+        return {
+          reason: `Locked because you have only completed ${solvedCount} of 7 Level 2 (Syllabus) questions.`,
+          levelToReset: 2,
+          solvedCount,
+          correctCount,
+          passed
+        };
+      } else if (!passed) {
+        return {
+          reason: `Locked because your Level 2 score was only ${correctCount}/7 (less than 550% passing threshold).`,
+          levelToReset: 2,
+          solvedCount,
+          correctCount,
+          passed
+        };
+      }
+    }
+    return null;
+  };
+
+  const resetLevel = (moduleId: string, level: number) => {
+    const seedKey = `${moduleId}-${level}`;
+    const currentSeed = levelQuestionSeeds[seedKey] || 0;
+    const updatedSeeds = { ...levelQuestionSeeds, [seedKey]: currentSeed + 1 };
+    setLevelQuestionSeeds(updatedSeeds);
+    saveToStorage('mechLevelQuestionSeeds', updatedSeeds);
+
+    const startQ = (level - 1) * 7 + 1;
+    const endQ = level * 7;
+
+    const nextCompleted = { ...completedAnswers };
+    const nextMistakes = { ...mistakeCounter };
+    const nextSolutions = { ...solutionsRevealed };
+    const nextMcqAnswers = { ...mcqAnswers };
+    const nextCorrectlyAnswered = { ...correctlyAnswered };
+
+    for (let qid = startQ; qid <= endQ; qid++) {
+      const qKey = `${moduleId}-${qid}`;
+      delete nextCompleted[qKey];
+      delete nextMistakes[qKey];
+      delete nextSolutions[qKey];
+      delete nextMcqAnswers[qKey];
+      delete nextCorrectlyAnswered[qKey];
+    }
+
+    setCompletedAnswers(nextCompleted);
+    setMistakeCounter(nextMistakes);
+    setSolutionsRevealed(nextSolutions);
+    setMcqAnswers(nextMcqAnswers);
+    setCorrectlyAnswered(nextCorrectlyAnswered);
+
+    saveToStorage('mechCompletedAnswers', nextCompleted);
+    saveToStorage('mechCorrectlyAnswered', nextCorrectlyAnswered);
+    saveToStorage('g1Answers', nextCompleted);
+    saveToStorage('mcqAnswers', nextMcqAnswers);
+    saveToStorage('mechMistakeCounter', nextMistakes);
+    saveToStorage('solutionsRevealed', nextSolutions);
+
+    const targetIdx = startQ - 1;
+    if (activeGrade === 'grade1') {
+      setG1Indices(prev => ({ ...prev, [g1ActiveModule]: targetIdx }));
+    } else if (activeGrade === 'grade2') {
+      setG2Indices(prev => ({ ...prev, [g2ActiveModule]: targetIdx }));
+    } else {
+      setG3Indices(prev => ({ ...prev, [g3ActiveModule]: targetIdx }));
+    }
+
+    setG1Input('');
+    setG2OptionSelected(null);
+    setG3OptionSelected(null);
+    setQuestionCountdown(120);
+    setQuestionTimedOut(false);
+  };
+
   // Active dataset resolvers based on active sub-module state
-  const getG1Questions = () => getQuestionsForModule(getG1ModuleId(), getVirtualElapsedDays(getG1ModuleId()));
+  const getG1Questions = () => getQuestionsForModuleWithSeeds(getG1ModuleId(), getVirtualElapsedDays(getG1ModuleId()));
   const getG1ModuleId = () => {
     switch (g1ActiveModule) {
       case 'FMD': return 'g1_fmm';
@@ -266,7 +677,7 @@ export default function BikeGallery({
     }
   };
 
-  const getG2Questions = () => getQuestionsForModule(getG2ModuleId(), getVirtualElapsedDays(getG2ModuleId()));
+  const getG2Questions = () => getQuestionsForModuleWithSeeds(getG2ModuleId(), getVirtualElapsedDays(getG2ModuleId()));
   const getG2ModuleId = () => {
     switch (g2ActiveModule) {
       case 'AMSM': return 'g2_amsm';
@@ -276,7 +687,7 @@ export default function BikeGallery({
     }
   };
 
-  const getG3Questions = () => getQuestionsForModule(getG3ModuleId(), getVirtualElapsedDays(getG3ModuleId()));
+  const getG3Questions = () => getQuestionsForModuleWithSeeds(getG3ModuleId(), getVirtualElapsedDays(getG3ModuleId()));
   const getG3ModuleId = () => {
     switch(g3ActiveModule) {
       case 'SOM': return 'g3_som';
@@ -421,7 +832,7 @@ export default function BikeGallery({
 
   // Evaluation trigger when solving Q21 to award permanent Milestone Badge
   const verifyMilestoneAward = (moduleId: string) => {
-    const questions = getQuestionsForModule(moduleId, getVirtualElapsedDays(moduleId));
+    const questions = getQuestionsForModuleWithSeeds(moduleId, getVirtualElapsedDays(moduleId));
 
     // Filter questions solved in this module
     const allSolved = questions.every(q => completedAnswers[`${moduleId}-${q.id}`]);
@@ -433,7 +844,43 @@ export default function BikeGallery({
         const updatedBadges = [...earnedBadges, badge];
         setEarnedBadges(updatedBadges);
         saveToStorage('mechUserBadges', updatedBadges);
-        alert(`🏆 ACADEMIC MILESTONE REACHED!\n\nYou have solved all 21 problems of module [${getModuleBadgeName(moduleId)}] within the 3-week window!\n\nThe permanent "${badge}" insignia has been welded to your Live Profile.`);
+        setAppAlert({
+          text: `🏆 ACADEMIC MILESTONE REACHED!\n\nYou have solved all 21 problems of module [${getModuleBadgeName(moduleId)}] within the 3-week window!\n\nThe permanent "${badge}" insignia has been welded to your Live Profile.`,
+          type: 'success'
+        });
+      }
+    }
+  };
+
+  const checkAndHandleLevelSubmission = (
+    moduleId: string, 
+    qId: number, 
+    nextCompleted: Record<string, boolean>, 
+    nextCorrect: Record<string, boolean>
+  ) => {
+    let level = 1;
+    if (qId >= 8 && qId <= 14) level = 2;
+    else if (qId >= 15) level = 3;
+
+    const qIds = level === 1 ? [1,2,3,4,5,6,7] : level === 2 ? [8,9,10,11,12,13,14] : [15,16,17,18,19,20,21];
+    const allCompleted = qIds.every(id => nextCompleted[`${moduleId}-${id}`]);
+
+    if (allCompleted) {
+      const correctCount = qIds.filter(id => nextCorrect[`${moduleId}-${id}`]).length;
+      const scorePercent = (correctCount / 7) * 100;
+      if (scorePercent < 50) {
+        setAppAlert({
+          text: `⚠️ LEVEL ATTEMPT FAILED: Level ${level} Completed\n--------------------------------------------\nScore: ${correctCount}/7 (${scorePercent.toFixed(1)}%)\nPassing Threshold: 50% (at least 4 correct)\n\nUnder course guidelines, Level ${level} has been reset and scrambled with fresh random values. Let's try again!`,
+          type: 'error'
+        });
+        setTimeout(() => {
+          resetLevel(moduleId, level);
+        }, 100);
+      } else {
+        setAppAlert({
+          text: `🎉 CONGRATULATIONS!\n--------------------------------------------\nLevel ${level} completed successfully!\nScore: ${correctCount}/7 (${scorePercent.toFixed(1)}%)\n\nThe next level has been successfully unlocked!`,
+          type: 'success'
+        });
       }
     }
   };
@@ -441,7 +888,10 @@ export default function BikeGallery({
   // Submit subjective parameters (Grade 1 FMM & DOM)
   const handleG1Submit = () => {
     if (!candidateName || !collegeName) {
-      alert("Please authenticate using the Port Authentication panel below before submitting answers.");
+      setAppAlert({
+        text: "Please authenticate using the Port Authentication panel below before submitting answers.",
+        type: 'error'
+      });
       return;
     }
     const questions = getG1Questions();
@@ -464,11 +914,14 @@ export default function BikeGallery({
     const actual = parseFloat(trimmedInput);
     const isCorrect = Math.abs(expected - actual) < 0.1 || trimmedInput.toLowerCase() === activeQ.correctAnswer.toLowerCase();
 
-    if (isCorrect) {
-      const updatedCompleted = { ...completedAnswers, [compositeKey]: true };
-      setCompletedAnswers(updatedCompleted);
-      saveToStorage('mechCompletedAnswers', updatedCompleted);
+    const updatedCompleted = { ...completedAnswers, [compositeKey]: true };
+    const updatedCorrectly = { ...correctlyAnswered, [compositeKey]: isCorrect };
+    setCompletedAnswers(updatedCompleted);
+    setCorrectlyAnswered(updatedCorrectly);
+    saveToStorage('mechCompletedAnswers', updatedCompleted);
+    saveToStorage('mechCorrectlyAnswered', updatedCorrectly);
 
+    if (isCorrect) {
       // Handle socratic penalties
       const hints = hintsUsed[compositeKey] || 0;
       let pointsAwarded = 15;
@@ -486,6 +939,9 @@ export default function BikeGallery({
           return next;
         });
       }
+      if (onStreakTrigger) {
+        onStreakTrigger();
+      }
 
       // Verify if they earned the milestone badge
       setTimeout(() => verifyMilestoneAward(moduleId), 200);
@@ -494,8 +950,13 @@ export default function BikeGallery({
       const updatedMistakes = { ...mistakeCounter, [compositeKey]: currentMistakes + 1 };
       setMistakeCounter(updatedMistakes);
       saveToStorage('mechMistakeCounter', updatedMistakes);
-      alert(`⚠️ VERIFICATION ERROR: Subjective analyzer flags "${trimmedInput}" is mathematically outside tolerances. Select a Socratic hint to diagnose variables!`);
+      alert(`⚠️ VERIFICATION ERROR: Subjective analyzer flags "${trimmedInput}" is mathematically outside tolerances. Select a Socratic hint to diagnose variables! (Explanation and correct answer revealed below)`);
     }
+
+    // Process Level progression/reset
+    setTimeout(() => {
+      checkAndHandleLevelSubmission(moduleId, activeQ.id, updatedCompleted, updatedCorrectly);
+    }, 250);
   };
 
   // Grade 2 standard multiple choice trigger
@@ -520,14 +981,17 @@ export default function BikeGallery({
     const isCorrect = g2OptionSelected === activeQ.correctAnswerIndex;
 
     const updatedCompleted = { ...completedAnswers, [compositeKey]: true };
+    const updatedCorrectly = { ...correctlyAnswered, [compositeKey]: isCorrect };
     setCompletedAnswers(updatedCompleted);
+    setCorrectlyAnswered(updatedCorrectly);
     saveToStorage('mechCompletedAnswers', updatedCompleted);
+    saveToStorage('mechCorrectlyAnswered', updatedCorrectly);
 
     if (isCorrect) {
       const hints = hintsUsed[compositeKey] || 0;
       let pointsAwarded = 15;
       if (hints >= 3) {
-        pointsAwarded = 10;
+         pointsAwarded = 10;
         alert("⚡ GATE MATRIX CONVERGED: Option verified! Since all 3 hints were used, a 5-point deduction was logged.");
       } else {
         alert("⚡ GATE MATRIX CONVERGED: Correct option chosen! +15 points recorded.");
@@ -543,6 +1007,11 @@ export default function BikeGallery({
       saveToStorage('mechMistakeCounter', updatedMistakes);
       alert("⚠️ EVALUATION FAIL: Option did not match physical standards. Examine the Socratic details.");
     }
+
+    // Process Level progression/reset
+    setTimeout(() => {
+      checkAndHandleLevelSubmission(moduleId, activeQ.id, updatedCompleted, updatedCorrectly);
+    }, 250);
   };
 
   // Grade 3 placement MCQ submission
@@ -567,8 +1036,11 @@ export default function BikeGallery({
     const isCorrect = g3OptionSelected === activeQ.correctAnswerIndex;
 
     const updatedCompleted = { ...completedAnswers, [compositeKey]: true };
+    const updatedCorrectly = { ...correctlyAnswered, [compositeKey]: isCorrect };
     setCompletedAnswers(updatedCompleted);
+    setCorrectlyAnswered(updatedCorrectly);
     saveToStorage('mechCompletedAnswers', updatedCompleted);
+    saveToStorage('mechCorrectlyAnswered', updatedCorrectly);
 
     if (isCorrect) {
       const hints = hintsUsed[compositeKey] || 0;
@@ -590,6 +1062,133 @@ export default function BikeGallery({
       saveToStorage('mechMistakeCounter', updatedMistakes);
       alert("⚠️ PLACEMENT FEEDBACK: Selected choice is mathematically invalid for standard layouts. Please review the grounded formula box!");
     }
+
+    // Process Level progression/reset
+    setTimeout(() => {
+      checkAndHandleLevelSubmission(moduleId, activeQ.id, updatedCompleted, updatedCorrectly);
+    }, 250);
+  };
+
+  const handleNextQuestion = () => {
+    const currentModId = activeGrade === 'grade1' ? getG1ModuleId() : activeGrade === 'grade2' ? getG2ModuleId() : getG3ModuleId();
+    const questions = activeGrade === 'grade1' ? getG1Questions() : activeGrade === 'grade2' ? getG2Questions() : getG3Questions();
+    const curIdx = activeGrade === 'grade1' ? (g1Indices[g1ActiveModule] || 0) : activeGrade === 'grade2' ? (g2Indices[g2ActiveModule] || 0) : (g3Indices[g3ActiveModule] || 0);
+
+    if (curIdx < questions.length - 1) {
+      const nextIdx = curIdx + 1;
+      const nextQ = questions[nextIdx];
+      const qLock = isQuestionLockedByChrono(currentModId, nextQ.id);
+      
+      if (qLock.locked) {
+        setAppAlert({
+          text: `🔒 CANNOT PROCEED: ${qLock.reason}`,
+          type: 'error'
+        });
+        return;
+      }
+
+      if (activeGrade === 'grade1') {
+        setG1Indices(prev => ({ ...prev, [g1ActiveModule]: nextIdx }));
+        const prevAnsVal = g1Answers[`${currentModId}-${nextQ.id}`] || '';
+        setG1Input(prevAnsVal);
+      } else if (activeGrade === 'grade2') {
+        setG2Indices(prev => ({ ...prev, [g2ActiveModule]: nextIdx }));
+        const prevSel = mcqAnswers[`${currentModId}-${nextQ.id}`];
+        setG2OptionSelected(prevSel !== undefined ? prevSel : null);
+      } else {
+        setG3Indices(prev => ({ ...prev, [g3ActiveModule]: nextIdx }));
+        const prevSel = mcqAnswers[`${currentModId}-${nextQ.id}`];
+        setG3OptionSelected(prevSel !== undefined ? prevSel : null);
+      }
+      setQuestionCountdown(120);
+      setQuestionTimedOut(false);
+    } else {
+      setAppAlert({
+        text: "🎉 You have reached the end of this module's questions!",
+        type: 'success'
+      });
+    }
+  };
+
+  const handleSkipQuestion = () => {
+    const currentModId = activeGrade === 'grade1' ? getG1ModuleId() : activeGrade === 'grade2' ? getG2ModuleId() : getG3ModuleId();
+    const questions = activeGrade === 'grade1' ? getG1Questions() : activeGrade === 'grade2' ? getG2Questions() : getG3Questions();
+    const curIdx = activeGrade === 'grade1' ? (g1Indices[g1ActiveModule] || 0) : activeGrade === 'grade2' ? (g2Indices[g2ActiveModule] || 0) : (g3Indices[g3ActiveModule] || 0);
+    const activeQ = questions[curIdx];
+    const compositeKey = `${currentModId}-${activeQ.id}`;
+
+    if (completedAnswers[compositeKey]) {
+      setAppAlert({
+        text: "This question has already been completed or skipped.",
+        type: 'info'
+      });
+      return;
+    }
+
+    setAppAlert({
+      text: "⚠️ Are you sure you want to skip this question?\n\nIt will be marked as skipped (incorrect). This counts towards your level completeness but does not grant points. The formulas and solutions will be unlocked immediately!",
+      type: 'warning',
+      isConfirm: true,
+      onConfirm: () => {
+        const updatedCompleted = { ...completedAnswers, [compositeKey]: true };
+        const updatedCorrectly = { ...correctlyAnswered, [compositeKey]: false };
+        
+        setCompletedAnswers(updatedCompleted);
+        setCorrectlyAnswered(updatedCorrectly);
+        saveToStorage('mechCompletedAnswers', updatedCompleted);
+        saveToStorage('mechCorrectlyAnswered', updatedCorrectly);
+
+        if (activeGrade === 'grade1') {
+          const updatedAnswers = { ...g1Answers, [compositeKey]: "SKIPPED" };
+          setG1Answers(updatedAnswers);
+          saveToStorage('g1Answers', updatedAnswers);
+          setG1Input("SKIPPED");
+        } else {
+          const updatedMCQAnswers = { ...mcqAnswers, [compositeKey]: -1 };
+          setMcqAnswers(updatedMCQAnswers);
+          saveToStorage('mcqAnswers', updatedMCQAnswers);
+          if (activeGrade === 'grade2') {
+            setG2OptionSelected(-1);
+          } else {
+            setG3OptionSelected(-1);
+          }
+        }
+
+        // Trigger level submission evaluation
+        setTimeout(() => {
+          checkAndHandleLevelSubmission(currentModId, activeQ.id, updatedCompleted, updatedCorrectly);
+        }, 250);
+
+        // Auto navigate to the next unlocked question if possible
+        setTimeout(() => {
+          if (curIdx < questions.length - 1) {
+            const nextIdx = curIdx + 1;
+            const nextQ = questions[nextIdx];
+            const qLock = isQuestionLockedByChrono(currentModId, nextQ.id);
+            
+            if (qLock.locked) {
+              return;
+            }
+
+            if (activeGrade === 'grade1') {
+              setG1Indices(prev => ({ ...prev, [g1ActiveModule]: nextIdx }));
+              const prevAnsVal = g1Answers[`${currentModId}-${nextQ.id}`] || '';
+              setG1Input(prevAnsVal);
+            } else if (activeGrade === 'grade2') {
+              setG2Indices(prev => ({ ...prev, [g2ActiveModule]: nextIdx }));
+              const prevSel = mcqAnswers[`${currentModId}-${nextQ.id}`];
+              setG2OptionSelected(prevSel !== undefined ? prevSel : null);
+            } else {
+              setG3Indices(prev => ({ ...prev, [g3ActiveModule]: nextIdx }));
+              const prevSel = mcqAnswers[`${currentModId}-${nextQ.id}`];
+              setG3OptionSelected(prevSel !== undefined ? prevSel : null);
+            }
+            setQuestionCountdown(120);
+            setQuestionTimedOut(false);
+          }
+        }, 500);
+      }
+    });
   };
 
   // Request socratic hint progression
@@ -722,24 +1321,7 @@ export default function BikeGallery({
             </div>
 
             {/* Earned Badges Showcase list */}
-            {earnedBadges.length > 0 && (
-              <div className="bg-gradient-to-r from-yellow-950/20 to-neutral-900 border border-yellow-500/30 p-5 rounded-lg flex flex-wrap items-center gap-5 justify-between">
-                <div className="flex items-center gap-3">
-                  <Award size={28} className="text-yellow-400 animate-spin" style={{ animationDuration: '6s' }} />
-                  <div>
-                    <h4 className="font-bebas text-xl text-white tracking-widest uppercase">ACQUIRED SCHOLAR INSIGNIAS ({earnedBadges.length})</h4>
-                    <p className="text-xs text-zinc-400">Awarded for solving modular problems within the 3-week time constraints.</p>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  {earnedBadges.map((badge, bIdx) => (
-                    <span key={bIdx} className="bg-yellow-500/10 text-yellow-500 border border-yellow-500/40 text-[10px] uppercase tracking-wider font-extrabold px-3 py-1.5 rounded font-mono shadow-md">
-                      🏅 {badge}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
+            <BadgeInventory earnedBadges={earnedBadges} />
 
             {/* STUDY ROADMAP & FLOW PATH */}
             <div id="syllabus-roadmap-flow" className="bg-gradient-to-br from-[#121212] to-[#070707] border border-white/10 p-6 md:p-8 rounded-xl relative overflow-hidden shadow-xl">
@@ -804,29 +1386,74 @@ export default function BikeGallery({
                   <div className="hidden md:block absolute top-3 -right-3 text-zinc-700 font-mono text-sm">→</div>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-4">
                   <div className="flex items-center gap-2 text-[#e2231a]">
                     <span className="font-mono text-sm font-bold bg-[#e2231a]/10 border border-[#e2231a]/20 w-7 h-7 rounded-full flex items-center justify-center">5</span>
-                    <h5 className="font-bebas text-base text-white tracking-wider uppercase font-bold">5. TRAVERSE FURTHER</h5>
+                    <h5 className="font-bebas text-base text-white tracking-wider uppercase font-bold">5. TRAVERSE FURTHER (AI CHECK-IN)</h5>
                   </div>
                   <p className="text-sm text-zinc-400 leading-relaxed font-sans">
-                    With one module conquered, return to other course structures to unlock fresh subjects and complete your academic record!
+                    With one module conquered, return to other course structures to unlock fresh subjects and claim daily check-ins secured by the central AI.
                   </p>
-                  <button 
-                    onClick={() => {
-                      if (setDailyStreak) {
-                        setDailyStreak(prev => {
-                          const next = prev + 1;
-                          localStorage.setItem('mechDailyStreak', next.toString());
-                          alert(`🔥 DAILY CHALLENGE CHECK-IN SUCCESS!\n\nYour active daily study streak was successfully incremented to ${next} days! Keep compiling!`);
-                          return next;
-                        });
-                      }
-                    }}
-                    className="mt-2 px-3 py-1 bg-[#e2231a] hover:bg-neutral-800 border border-[#e2231a]/30 text-[10px] text-white uppercase font-mono font-extrabold rounded cursor-pointer transition-colors"
-                  >
-                    🚀 CLAIM TODAY'S CHECK-IN
-                  </button>
+                  
+                  {/* AI Study habit panel */}
+                  <div className="bg-black/40 border border-white/5 p-4 rounded-lg space-y-3 font-mono text-xs">
+                    <div className="flex justify-between items-center border-b border-white/5 pb-2">
+                      <span className="text-zinc-500 font-bold uppercase tracking-wider text-[10px]">AI Habit Shield</span>
+                      <span className="text-emerald-400 flex items-center gap-1 text-[10px]">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                        ONLINE_SECURED
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[10px] text-zinc-400">
+                      <div>
+                        Status: <span className="text-white font-bold">{dailyStreak > 0 ? `${dailyStreak} Days Active` : 'INACTIVE'}</span>
+                      </div>
+                      <div className="text-right">
+                        Rule: <span className="text-white font-semibold">Strict 24h Bracket</span>
+                      </div>
+                    </div>
+
+                    <button 
+                      type="button"
+                      disabled={isCheckingIn || !isTimerReady}
+                      onClick={handleDailyCheckIn}
+                      className={`w-full py-2 px-3 border transition-all text-[11px] uppercase font-bold tracking-widest flex items-center justify-center gap-1.5 rounded cursor-pointer ${
+                        !isTimerReady 
+                          ? 'bg-zinc-900 border-zinc-850 text-zinc-500 cursor-not-allowed hover:bg-zinc-900'
+                          : 'bg-[#e2231a] hover:bg-red-700 text-white border-transparent'
+                      }`}
+                    >
+                      {isCheckingIn ? (
+                        <>
+                          <RefreshCw className="animate-spin" size={12} />
+                          AI EVALUATING HABIT...
+                        </>
+                      ) : !isTimerReady ? (
+                        <>
+                          <Lock size={11} className="text-zinc-500" />
+                          LOCKED: {countdownStr}
+                        </>
+                      ) : (
+                        <>
+                          <Unlock size={11} className="animate-pulse" />
+                          🚀 CLAIM TODAY'S CHECK-IN
+                        </>
+                      )}
+                    </button>
+
+                    {checkInMsg && (
+                      <div className={`p-2.5 rounded text-[10px] leading-relaxed transition-all border ${
+                        checkInStatus === 'success' 
+                          ? 'bg-emerald-950/25 border-emerald-500/30 text-emerald-300' 
+                          : checkInStatus === 'locked' 
+                          ? 'bg-amber-950/25 border-amber-500/25 text-amber-300'
+                          : 'bg-red-950/35 border-red-500/35 text-red-300'
+                      }`}>
+                        {checkInMsg}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1005,12 +1632,17 @@ export default function BikeGallery({
             <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center bg-[#151515] p-5 border border-white/5 rounded-md relative overflow-hidden">
               <div className="absolute top-0 left-0 w-1.5 h-full bg-[#e2231a]" />
               <div>
-                <span className="text-[10px] font-mono tracking-widest bg-suzuki-red/10 border border-suzuki-red/20 text-suzuki-red font-extrabold px-3 py-1 uppercase rounded leading-normal">
+                <span className="text-xs font-mono tracking-widest bg-suzuki-red/10 border border-suzuki-red/20 text-suzuki-red font-extrabold px-3 py-1 uppercase rounded leading-normal">
                   ACTIVE SCHOLAR TERMINAL: {activeTrackID}
                 </span>
-                <span className="text-xs text-zinc-400 font-sans mt-2 block ml-1">
-                  Candidate Scholar: <strong className="text-white">{candidateName || "UNREGISTERED"}</strong> · Center: <strong className="text-white">{collegeName || "OFFLINE"}</strong> · Live Score: <strong className="text-yellow-400">{currentScore} pts</strong>
-                </span>
+                <div className="flex flex-wrap items-center gap-2 mt-2">
+                  <span className="text-[#e2231a] bg-red-600/15 border border-red-500/20 px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider font-mono animate-pulse flex items-center gap-1">
+                    <Sparkles size={11} /> 21-Day Syllabus Crafted Every Day by Advanced AI
+                  </span>
+                  <span className="text-sm text-zinc-400 font-sans block">
+                    Candidate Scholar: <strong className="text-white">{candidateName || "UNREGISTERED"}</strong> · Center: <strong className="text-white">{collegeName || "OFFLINE"}</strong> · Live Score: <strong className="text-yellow-400">{currentScore} pts</strong>
+                  </span>
+                </div>
                 {earnedBadges.length > 0 && (
                   <div className="flex gap-1.5 mt-2 ml-1">
                     {earnedBadges.map((badge, idx) => (
@@ -1068,7 +1700,7 @@ export default function BikeGallery({
                   <button
                     key={mod.id}
                     onClick={() => setG1ActiveModule(mod.id as any)}
-                    className={`px-4 py-2.5 rounded font-mono text-xs font-bold uppercase transition-all whitespace-nowrap ${
+                    className={`px-4 py-2.5 rounded font-mono text-sm font-bold uppercase transition-all whitespace-nowrap ${
                       g1ActiveModule === mod.id
                         ? 'bg-suzuki-red/10 border border-suzuki-red text-suzuki-red shadow-lg shadow-suzuki-red/5'
                         : 'bg-black/30 border border-white/5 text-zinc-500 hover:text-zinc-300'
@@ -1091,7 +1723,7 @@ export default function BikeGallery({
                   <button
                     key={mod.id}
                     onClick={() => setG2ActiveModule(mod.id as any)}
-                    className={`px-4 py-2.5 rounded font-mono text-xs font-bold uppercase transition-all whitespace-nowrap ${
+                    className={`px-4 py-2.5 rounded font-mono text-sm font-bold uppercase transition-all whitespace-nowrap ${
                       g2ActiveModule === mod.id
                         ? 'bg-suzuki-red/10 border border-suzuki-red text-suzuki-red shadow-lg shadow-suzuki-red/5'
                         : 'bg-black/30 border border-white/5 text-zinc-500 hover:text-zinc-300'
@@ -1116,7 +1748,7 @@ export default function BikeGallery({
                   <button
                     key={mod.id}
                     onClick={() => setG3ActiveModule(mod.id as any)}
-                    className={`px-4 py-2.5 rounded font-mono text-xs font-bold uppercase transition-all whitespace-nowrap ${
+                    className={`px-4 py-2.5 rounded font-mono text-sm font-bold uppercase transition-all whitespace-nowrap ${
                       g3ActiveModule === mod.id
                         ? 'bg-suzuki-red/10 border border-suzuki-red text-suzuki-red shadow-lg shadow-suzuki-red/5'
                         : 'bg-black/30 border border-white/5 text-zinc-500 hover:text-zinc-300'
@@ -1152,15 +1784,15 @@ export default function BikeGallery({
                         ACTIVATE {badgeName} SYLLABUS WORKBOOK
                       </h3>
                       <p className="text-zinc-400 text-sm max-w-2xl mx-auto leading-relaxed">
-                        To guarantee structural mastering, this 10-Question progressive path (spanning Beginner, Intermediate, Advanced, and Mastery levels) binds your account to a strict 3-week (21 days) countdown limits. Completing the entire sequence and the final test unlocks the dynamic permanent milestone badge.
+                        To guarantee complete mastery of structural engineering design, this 21-day intensive learning curriculum generates exactly 21 unique problems every single study day. Solve daily problems to boost score metrics and lock in permanent daily learning streaks!
                       </p>
                     </div>
 
                     <div className="bg-black p-4 rounded-md border border-white/5 max-w-lg mx-auto flex items-center gap-3 justify-center text-left text-xs text-zinc-400 font-mono">
                       <Hourglass size={18} className="text-suzuki-red" />
                       <div>
-                        <span className="text-white font-bold block">3-WEEK COMPREHENSIVE LIMIT:</span>
-                        Once opened, you have exactly 504 hours to submit solutions for all 10 problems.
+                        <span className="text-white font-bold block">21-DAY INTENSIVE PROGRAM:</span>
+                        Once opened, your 21-day timeline initiates. Return daily for a brand new set of 21 unique structured problems.
                       </div>
                     </div>
 
@@ -1169,7 +1801,7 @@ export default function BikeGallery({
                       className="px-8 py-4 bg-[#e2231a] hover:bg-neutral-950 border-2 border-red-600 hover:border-white/30 text-white font-condensed font-black tracking-widest text-sm uppercase rounded cursor-pointer transition-all active:scale-[0.98] shadow-lg flex items-center gap-2 mx-auto"
                     >
                       <Unlock size={16} />
-                      [⚡ INITIALIZE LEVEL & LAUNCH 21-DAY COUNTDOWN]
+                      [⚡ INITIALIZE LEVEL & LAUNCH 21-DAY TIMELINE]
                     </button>
                   </div>
                 );
@@ -1220,16 +1852,19 @@ export default function BikeGallery({
                     const l1Keys = [1, 2, 3, 4, 5, 6, 7].map(qid => `${currentModId}-${qid}`);
                     const l1SolvedCount = l1Keys.filter(k => completedAnswers[k]).length;
                     const l1MistakesCount = l1Keys.reduce((sum, k) => sum + (mistakeCounter[k] || 0), 0);
+                    const l1RevealedCount = l1Keys.filter(k => solutionsRevealed[k]).length;
                     
                     // Count Level 2 stats (Q8-Q14)
                     const l2Keys = [8, 9, 10, 11, 12, 13, 14].map(qid => `${currentModId}-${qid}`);
                     const l2SolvedCount = l2Keys.filter(k => completedAnswers[k]).length;
                     const l2MistakesCount = l2Keys.reduce((sum, k) => sum + (mistakeCounter[k] || 0), 0);
+                    const l2RevealedCount = l2Keys.filter(k => solutionsRevealed[k]).length;
 
                     // Count Level 3 stats (Q15-Q21)
                     const l3Keys = [15, 16, 17, 18, 19, 20, 21].map(qid => `${currentModId}-${qid}`);
                     const l3SolvedCount = l3Keys.filter(k => completedAnswers[k]).length;
                     const l3MistakesCount = l3Keys.reduce((sum, k) => sum + (mistakeCounter[k] || 0), 0);
+                    const l3RevealedCount = l3Keys.filter(k => solutionsRevealed[k]).length;
 
                     return (
                       <div className="bg-[#141414] border border-white/5 p-6 rounded-lg space-y-4">
@@ -1237,15 +1872,15 @@ export default function BikeGallery({
                           <div>
                             <h4 className="font-bebas text-xl text-white tracking-widest uppercase flex items-center gap-2">
                               <Target className="text-suzuki-red animate-pulse" size={18} />
-                              CHRONOLOGICAL STUDY TIMELINE PROGRESSION
+                              21-DAY INTENSIVE CORE CURRICULUM
                             </h4>
                             <p className="text-sm text-white font-sans font-medium">
-                              21 sequential questions spanning 3 weeks (7 questions per level). Complete daily tiers perfectly to skip scheduled locks instantly!
+                              Syllabus features 21 new unique dynamic problems each day across 21 days. Complete daily tiers perfectly to skip scheduled locks instantly!
                             </p>
                           </div>
                           <div className="font-mono text-sm bg-black px-3 py-1.5 rounded border border-white/10 shrink-0 text-right">
-                            <span className="text-white">Current Phase: </span>
-                            <span className="text-yellow-400 font-bold uppercase">Study Day {status.currentElapsedDays} of Week {Math.ceil(status.currentElapsedDays / 7)}</span>
+                            <span className="text-white">Current Day: </span>
+                            <span className="text-yellow-400 font-bold uppercase">Day {status.currentElapsedDays} / 21</span>
                           </div>
                         </div>
                         
@@ -1282,11 +1917,11 @@ export default function BikeGallery({
                               {/* Card 1: Level 1 Basics */}
                               <div className="bg-black/40 border border-white/10 p-4 rounded relative overflow-hidden flex flex-col justify-between">
                                 <div className="space-y-2">
-                                  <div className="flex justify-between items-start">
+                                  <div className="flex justify-between items-center">
                                     <span className="font-mono text-[10px] text-[#e2231a] tracking-widest font-bold bg-[#e2231a]/10 border border-[#e2231a]/30 px-2 py-0.5 rounded">
                                       LEVEL 1 // BASICS
                                     </span>
-                                    <span className="text-[10px] font-mono text-zinc-400 font-bold bg-white/5 border border-white/10 px-2 py-0.5 rounded uppercase">{diffT}</span>
+                                    <span className="text-[10px] font-mono text-zinc-400 font-bold bg-white/5 border border-white/10 px-2 py-0.5 rounded uppercase font-bold">WEEK 1</span>
                                   </div>
                                   <h5 className="font-bebas text-lg text-white tracking-wider">[TIER_01] QUESTIONS 1-7</h5>
                                   <div className="space-y-1 text-sm font-mono text-white">
@@ -1300,17 +1935,47 @@ export default function BikeGallery({
                                         {l1MistakesCount}
                                       </span>
                                     </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-white font-medium">Revealed Answers:</span>
+                                      <span className={l1RevealedCount > 0 ? "text-orange-400 font-bold" : "text-emerald-400 font-bold"}>
+                                        {l1RevealedCount}
+                                      </span>
+                                    </div>
                                   </div>
                                 </div>
-                                <div className="mt-4 pt-2 border-t border-white/5 text-xs font-mono">
+                                <div className="mt-4 pt-2 border-t border-white/5 text-xs font-mono space-y-2">
                                   {l1SolvedCount === 7 ? (
-                                    l1MistakesCount === 0 ? (
+                                    (l1MistakesCount === 0 && l1RevealedCount === 0) ? (
                                       <span className="text-emerald-400 font-bold block">⚡ PERFECT PASS JUMP CREDIT: Unlocked Level 2 early!</span>
                                     ) : (
-                                      <span className="text-yellow-400 block">✔️ COMPLETE WITH {l1MistakesCount} MISTAKES. Level 2 unlocked standard.</span>
+                                      <div className="space-y-1.5">
+                                        <span className="text-yellow-400 block">✔️ COMPLETE WITH {l1MistakesCount} MISTAKE(S) / {l1RevealedCount} REVEALED. Instant lock bypass is disabled.</span>
+                                        <button
+                                          onClick={() => {
+                                            if (confirm("Reset and refresh Level 1 to solve a fresh set of different questions with different parameters? This allows you to achieve a perfect run to bypass locks instantly!")) {
+                                              resetLevel(currentModId, 1);
+                                            }
+                                          }}
+                                          className="w-full py-1 text-center bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/20 rounded text-[10px] uppercase font-bold tracking-wider transition-all cursor-pointer font-sans"
+                                        >
+                                          🔄 Reset & Try Perfect Pass
+                                        </button>
+                                      </div>
                                     )
                                   ) : (
-                                    <span className="text-white block">Solve all 7 basics to unlock next syllabus level.</span>
+                                    <div className="space-y-1.5">
+                                      <span className="text-white block">Solve all 7 basics to unlock next syllabus level.</span>
+                                      <button
+                                        onClick={() => {
+                                          if (confirm("Reset Level 1 questions and draw a completely different set of questions with new parameters to start fresh?")) {
+                                            resetLevel(currentModId, 1);
+                                          }
+                                        }}
+                                        className="w-full py-1 text-center bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border border-white/10 rounded text-[10px] uppercase tracking-wider transition-all cursor-pointer font-sans"
+                                      >
+                                        🔄 Reset & Scramble Questions
+                                      </button>
+                                    </div>
                                   )}
                                 </div>
                               </div>
@@ -1322,7 +1987,7 @@ export default function BikeGallery({
                                   : "bg-neutral-950/40 border-dashed border-white/5 opacity-50"
                               }`}>
                                 <div className="space-y-2">
-                                  <div className="flex justify-between items-start">
+                                  <div className="flex justify-between items-center">
                                     <span className={`font-mono text-[10px] tracking-widest font-bold px-2 py-0.5 rounded border ${
                                       status.activeUnlockedDay >= 2 
                                         ? "bg-suzuki-red/10 border-suzuki-red/30 text-suzuki-red" 
@@ -1330,7 +1995,7 @@ export default function BikeGallery({
                                     }`}>
                                       LEVEL 2 // SYLLABUS-ORIENTED
                                     </span>
-                                    <span className="text-[10px] font-mono text-zinc-400 font-bold bg-white/5 border border-white/10 px-2 py-0.5 rounded uppercase">{diffT}</span>
+                                    <span className="text-[10px] font-mono text-zinc-400 font-bold bg-white/5 border border-white/10 px-2 py-0.5 rounded uppercase font-bold">WEEK 2</span>
                                   </div>
                                   <h5 className="font-bebas text-lg text-white tracking-wider">[TIER_02] QUESTIONS 8-14</h5>
                                   <div className="space-y-1 text-sm font-mono text-white">
@@ -1344,22 +2009,52 @@ export default function BikeGallery({
                                         {l2MistakesCount}
                                       </span>
                                     </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-white font-medium">Revealed Answers:</span>
+                                      <span className={l2RevealedCount > 0 ? "text-orange-400 font-bold" : "text-emerald-400 font-bold"}>
+                                        {l2RevealedCount}
+                                      </span>
+                                    </div>
                                   </div>
                                 </div>
-                                <div className="mt-4 pt-2 border-t border-white/5 text-xs font-mono">
+                                <div className="mt-4 pt-2 border-t border-white/5 text-xs font-mono space-y-2">
                                   {status.activeUnlockedDay >= 2 ? (
                                     l2SolvedCount === 7 ? (
-                                      l2MistakesCount === 0 ? (
+                                      (l2MistakesCount === 0 && l2RevealedCount === 0) ? (
                                         <span className="text-emerald-400 font-bold block">⚡ PERFECT PASS JUMP CREDIT: Unlocked Level 3 early!</span>
                                       ) : (
-                                        <span className="text-yellow-400 block">✔️ COMPLETE WITH {l2MistakesCount} MISTAKES. Level 3 unlocked standard.</span>
+                                        <div className="space-y-1.5">
+                                          <span className="text-yellow-400 block">✔️ COMPLETE WITH {l2MistakesCount} MISTAKES / {l2RevealedCount} REVEALED. Instant lock bypass is disabled.</span>
+                                          <button
+                                            onClick={() => {
+                                              if (confirm("Reset and refresh Level 2 to solve a fresh set of different questions with different parameters? This allows you to achieve a perfect run to bypass locks instantly!")) {
+                                                resetLevel(currentModId, 2);
+                                              }
+                                            }}
+                                            className="w-full py-1 text-center bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/20 rounded text-[10px] uppercase font-bold tracking-wider transition-all cursor-pointer font-sans"
+                                          >
+                                            🔄 Reset & Try Perfect Pass
+                                          </button>
+                                        </div>
                                       )
                                     ) : (
-                                      status.day1Bypassed ? (
-                                        <span className="text-cyan-400 font-bold block">✨ ACCURACY JUMP ACTIVE</span>
-                                      ) : (
-                                        <span className="text-emerald-400 block">🔓 UNLOCKED VIA PROGRESS</span>
-                                      )
+                                      <div className="space-y-1.5">
+                                        {status.day1Bypassed ? (
+                                          <span className="text-cyan-400 font-bold block">✨ ACCURACY JUMP ACTIVE</span>
+                                        ) : (
+                                          <span className="text-emerald-400 block">🔓 UNLOCKED VIA PROGRESS</span>
+                                        )}
+                                        <button
+                                          onClick={() => {
+                                            if (confirm("Reset Level 2 questions and draw a completely different set of questions with new parameters to start fresh?")) {
+                                              resetLevel(currentModId, 2);
+                                            }
+                                          }}
+                                          className="w-full py-1 text-center bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border border-white/10 rounded text-[10px] uppercase tracking-wider transition-all cursor-pointer font-sans"
+                                        >
+                                          🔄 Reset & Scramble Questions
+                                        </button>
+                                      </div>
                                     )
                                   ) : (
                                     <span className="text-red-400 font-bold block">🔒 LOCKED: Complete Level 1 questions to unlock</span>
@@ -1374,7 +2069,7 @@ export default function BikeGallery({
                                   : "bg-neutral-950/40 border-dashed border-white/5 opacity-50"
                               }`}>
                                 <div className="space-y-2">
-                                  <div className="flex justify-between items-start">
+                                  <div className="flex justify-between items-center">
                                     <span className={`font-mono text-[10px] tracking-widest font-bold px-2 py-0.5 rounded border ${
                                       status.activeUnlockedDay >= 3
                                         ? "bg-yellow-500/10 border-yellow-500/20 text-yellow-500" 
@@ -1382,7 +2077,7 @@ export default function BikeGallery({
                                     }`}>
                                       LEVEL 3 // APPLICATION-LEVEL
                                     </span>
-                                    <span className="text-[10px] font-mono text-zinc-400 font-bold bg-white/5 border border-white/10 px-2 py-0.5 rounded uppercase">{diffT}</span>
+                                    <span className="text-[10px] font-mono text-zinc-400 font-bold bg-white/5 border border-white/10 px-2 py-0.5 rounded uppercase font-bold">WEEK 3</span>
                                   </div>
                                   <h5 className="font-bebas text-lg text-white tracking-wider">[TIER_03] QUESTIONS 15-21</h5>
                                   <div className="space-y-1 text-sm font-mono text-white">
@@ -1396,22 +2091,64 @@ export default function BikeGallery({
                                         {l3MistakesCount}
                                       </span>
                                     </div>
+                                    <div className="flex justify-between">
+                                      <span className="text-white font-medium">Revealed Answers:</span>
+                                      <span className={l3RevealedCount > 0 ? "text-orange-400 font-bold" : "text-emerald-400 font-bold"}>
+                                        {l3RevealedCount}
+                                      </span>
+                                    </div>
                                   </div>
                                 </div>
-                                <div className="mt-4 pt-2 border-t border-white/5 text-xs font-mono">
+                                <div className="mt-4 pt-2 border-t border-white/5 text-xs font-mono space-y-2">
                                   {status.activeUnlockedDay >= 3 ? (
                                     l3SolvedCount === 7 ? (
-                                      l3MistakesCount === 0 ? (
-                                        <span className="text-cyan-400 font-black block">👑 PERFECT EXCELLENCE SPEEDRUNNER STATE ACQUIRED!</span>
+                                      (l3MistakesCount === 0 && l3RevealedCount === 0) ? (
+                                        <div className="space-y-1.5">
+                                          <span className="text-cyan-400 font-black block">👑 PERFECT EXCELLENCE SPEEDRUNNER STATE ACQUIRED!</span>
+                                          <button
+                                            onClick={() => {
+                                              if (confirm("Reset Level 3 to draw another fresh set of dynamic questions with different parameters?")) {
+                                                resetLevel(currentModId, 3);
+                                              }
+                                            }}
+                                            className="w-full py-1 text-center bg-zinc-800 hover:bg-zinc-700 text-white border border-white/10 rounded text-[10px] uppercase tracking-wider transition-all cursor-pointer font-sans font-bold"
+                                          >
+                                            🔄 Reset & Solve Again
+                                          </button>
+                                        </div>
                                       ) : (
-                                        <span className="text-emerald-400 font-bold block">🎓 MODULE MASTERED! BADGE SECURED IN TIME</span>
+                                        <div className="space-y-1.5">
+                                          <span className="text-emerald-400 font-bold block">🎓 MODULE MASTERED! BADGE SECURED IN TIME</span>
+                                          <button
+                                            onClick={() => {
+                                              if (confirm("Reset Level 3 to draw another fresh set of dynamic questions with different parameters?")) {
+                                                resetLevel(currentModId, 3);
+                                              }
+                                            }}
+                                            className="w-full py-1 text-center bg-zinc-800 hover:bg-zinc-700 text-white border border-white/10 rounded text-[10px] uppercase tracking-wider transition-all cursor-pointer font-sans font-bold"
+                                          >
+                                            🔄 Reset & Solve Again
+                                          </button>
+                                        </div>
                                       )
                                     ) : (
-                                      status.day2Bypassed ? (
-                                        <span className="text-cyan-400 font-bold block">⚡ ACCURACY JUMP LEVEL 3 ACTIVE</span>
-                                      ) : (
-                                        <span className="text-white block">🔓 ACTIVE: Solve items to finish module syllabus!</span>
-                                      )
+                                      <div className="space-y-1.5">
+                                        {status.day2Bypassed ? (
+                                          <span className="text-cyan-400 font-bold block">⚡ ACCURACY JUMP LEVEL 3 ACTIVE</span>
+                                        ) : (
+                                          <span className="text-white block">🔓 ACTIVE: Solve items to finish module syllabus!</span>
+                                        )}
+                                        <button
+                                          onClick={() => {
+                                            if (confirm("Reset Level 3 questions and draw a completely different set of questions with new parameters to start fresh?")) {
+                                              resetLevel(currentModId, 3);
+                                            }
+                                          }}
+                                          className="w-full py-1 text-center bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border border-white/10 rounded text-[10px] uppercase tracking-wider transition-all cursor-pointer font-sans"
+                                        >
+                                          🔄 Reset & Scramble Questions
+                                        </button>
+                                      </div>
                                     )
                                   ) : (
                                     <span className="text-red-400 font-bold block">🔒 LOCKED: Complete Level 2 questions to unlock</span>
@@ -1438,46 +2175,38 @@ export default function BikeGallery({
                     return (
                       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 bg-[#111] border border-white/10 overflow-hidden shadow-2xl rounded-lg p-6 md:p-10 font-sans">
                         {/* Left sidebar: drawing analysis + socratic advice */}
-                        <div className="lg:col-span-5 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-white/10 pb-6 lg:pb-0 lg:pr-8 space-y-4">
+                        <div className="lg:col-span-4 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-white/10 pb-6 lg:pb-0 lg:pr-8 space-y-4">
                           <div className="space-y-4">
                             <div className="flex justify-between items-center text-[10px] uppercase font-mono tracking-widest text-zinc-500 font-extrabold">
                               <span>Socratic Advice Vector</span>
                               <span className="text-suzuki-red animate-pulse">● EVALUATION_RIG</span>
                             </div>
 
-                            {/* FMM Static Hydraulic analysis representation block */}
-                            <div className="aspect-square bg-gradient-to-b from-neutral-900 to-black border border-white/10 rounded-xl flex flex-col justify-between p-4 relative overflow-hidden select-none group shadow-2xl">
-                              <span className="absolute top-2.5 left-2.5 text-[9px] font-mono text-zinc-500 uppercase tracking-widest bg-black/60 px-2 py-0.5 rounded border border-white/5 z-20 font-bold">
-                                SCHEMATIC_VECTOR_RIG: {g1ActiveModule}
-                              </span>
-                              
-                              <div className="relative w-full h-[180px] rounded-lg overflow-hidden border border-white/5 shadow-inner flex items-center justify-center">
-                                <div className="absolute inset-0 bg-neutral-950/40 mix-blend-overlay z-10 group-hover:bg-transparent transition-all duration-300" />
-                                <img 
-                                  src="https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=600&q=85&auto=format&fit=crop"
-                                  alt="Hydraulic Pipe Dynamics schematic reference"
-                                  className="absolute inset-0 w-full h-full object-cover grayscale opacity-45 group-hover:opacity-85 group-hover:scale-105 transition-all duration-700 pointer-events-none"
-                                  referrerPolicy="no-referrer"
-                                />
-                                {/* Dynamic SVG Overlay with high visibility */}
-                                <svg viewBox="0 0 200 200" className="w-40 h-40 drop-shadow-[0_4px_12px_rgba(0,0,0,0.95)] opacity-90 group-hover:opacity-100 transition-all z-12">
-                                  <rect x="40" y="40" width="120" height="120" stroke="rgba(226,35,26,0.6)" strokeWidth="2.5" fill="none" rx="2" />
-                                  <circle cx="100" cy="100" r="40" stroke="#00d2ff" strokeWidth="2.5" strokeDasharray="5,3" fill="none" />
-                                  <line x1="100" y1="20" x2="100" y2="180" stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
-                                  <line x1="20" y1="100" x2="180" y2="100" stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
-                                  <path d="M 128,72 L 150,56" stroke="#c8ff00" strokeWidth="2.5" />
-                                  <text x="60" y="112" fill="#fff" fontSize="8" fontWeight="bold" fontFamily="monospace">D_throat = 50mm</text>
-                                  <text x="110" y="60" fill="#e2231a" fontSize="10" fontWeight="black" fontFamily="monospace">JET V_1</text>
-                                </svg>
-                              </div>
-
-                              <p className="text-xs font-mono text-center text-zinc-400 leading-normal mt-2 font-medium bg-black/40 py-1.5 px-2 rounded border border-white/5">
-                                Derived system analysis for 4th-Sem evaluations. Submit exact numerical answers matching bounds to pass.
-                              </p>
-                            </div>
-
                             {/* Diagnostic Upload Key */}
-                            <div className="p-4 bg-zinc-950 border border-white/5 rounded text-xs font-mono space-y-3">
+                            <div 
+                              onDragOver={(e) => {
+                                e.preventDefault();
+                                setIsDragOverDraft(prev => ({ ...prev, [compositeKey]: true }));
+                              }}
+                              onDragLeave={() => {
+                                setIsDragOverDraft(prev => ({ ...prev, [compositeKey]: false }));
+                              }}
+                              onDrop={(e) => handleDraftFileDrop(e, compositeKey)}
+                              className={`p-4 bg-zinc-950 border transition-all duration-200 rounded text-xs font-mono space-y-3 relative overflow-hidden ${
+                                isDragOverDraft[compositeKey] 
+                                  ? "border-emerald-500/50 bg-emerald-950/10 scale-[1.01]" 
+                                  : "border-white/5"
+                              }`}
+                            >
+                              {/* Hidden file input */}
+                              <input 
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={(e) => handleDraftFileSelect(e, compositeKey)}
+                                accept="image/*,application/pdf,.dwg,.dxf,.txt"
+                                className="hidden"
+                              />
+
                               <div className="flex justify-between items-center">
                                 <span className="text-yellow-400 font-bold uppercase text-[9px] flex items-center gap-1.5">
                                   <Layers size={11} />
@@ -1485,15 +2214,84 @@ export default function BikeGallery({
                                 </span>
                                 <span className="text-[9px] text-zinc-500 font-bold">PDF, JPEG, CAD</span>
                               </div>
+
                               <p className="text-zinc-400 text-xs md:text-sm leading-relaxed font-sans font-medium">
-                                Upload detailed velocity triangles, governor force polygons, or kinematic free-body diagrams to sync calculations.
+                                Upload detailed velocity triangles, governor force polygons, or kinematic free-body diagrams to sync calculations. Drag & drop or select.
                               </p>
-                              <button 
-                                onClick={() => alert("📂 ACTIVE WORKBOOK SKETCH UPLOAD: Interface opened. Choose file to bind FBD layout to telemetry.")}
-                                className="w-full py-2 bg-neutral-900 hover:bg-neutral-800 border border-white/10 text-white text-[10px] font-bold tracking-widest uppercase cursor-pointer transition-all"
-                              >
-                                SELECT DRAFT FILE TO SYNC
-                              </button>
+
+                              {/* CONDITIONAL RENDERING OF STATES */}
+                              {draftSyncProgress[compositeKey] !== undefined ? (
+                                /* SYNCING STATE */
+                                <div className="space-y-2 p-2 bg-black/40 border border-yellow-500/10 rounded">
+                                  <div className="flex justify-between items-center text-[10px] text-yellow-500">
+                                    <span className="font-bold flex items-center gap-1 animate-pulse">
+                                      <RefreshCw size={10} className="animate-spin" />
+                                      {draftSyncingLabel[compositeKey] || 'Synchronizing draft file...'}
+                                    </span>
+                                    <span className="font-mono font-bold text-xs">{draftSyncProgress[compositeKey]}%</span>
+                                  </div>
+                                  <div className="w-full h-1.5 bg-zinc-900 rounded-full overflow-hidden">
+                                    <div 
+                                      className="h-full bg-yellow-500 transition-all duration-100 ease-out"
+                                      style={{ width: `${draftSyncProgress[compositeKey]}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              ) : syncedDraftFiles[compositeKey] ? (
+                                /* SYNCED STATE SUCCEEDED */
+                                <div className="space-y-3 p-3 bg-emerald-950/10 border border-emerald-500/20 rounded">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="space-y-1 overflow-hidden">
+                                      <div className="text-emerald-400 font-bold text-[10px] uppercase flex items-center gap-1.5">
+                                        <CheckCircle size={12} className="shrink-0 animate-bounce" />
+                                        SYNCED AT {syncedDraftFiles[compositeKey].timestamp}
+                                      </div>
+                                      <p className="text-zinc-200 text-xs font-semibold truncate" title={syncedDraftFiles[compositeKey].name}>
+                                        {syncedDraftFiles[compositeKey].name}
+                                      </p>
+                                      <div className="text-[9px] text-zinc-500 font-bold">
+                                        Size: {syncedDraftFiles[compositeKey].size} // Type: {syncedDraftFiles[compositeKey].type || 'Unknown'}
+                                      </div>
+                                    </div>
+                                    <button 
+                                      onClick={() => removeSyncedDraft(compositeKey)}
+                                      className="text-[9px] font-bold text-red-500 hover:text-red-400 underline font-mono tracking-wider cursor-pointer bg-transparent border-0 outline-none p-1 self-start uppercase shrink-0"
+                                      title="Unsync file"
+                                    >
+                                      [UNSYNC]
+                                    </button>
+                                  </div>
+
+                                  {/* Render small preview if file is an image */}
+                                  {syncedDraftFiles[compositeKey].preview && (
+                                    <div className="relative border border-emerald-500/20 rounded-md overflow-hidden bg-black/60 aspect-video flex items-center justify-center">
+                                      <img 
+                                        src={syncedDraftFiles[compositeKey].preview || undefined} 
+                                        alt="FBD Preview" 
+                                        referrerPolicy="no-referrer"
+                                        className="max-h-full max-w-full object-contain brightness-95 contrast-105"
+                                      />
+                                      <div className="absolute bottom-1 right-1 px-1.5 py-0.5 bg-black/80 border border-white/10 text-[8px] font-mono font-bold text-emerald-400 uppercase tracking-widest rounded-sm">
+                                        Active CAD Telemetry Link
+                                      </div>
+                                    </div>
+                                  )}
+                                  
+                                  {/* Mechanical integration readout feedback */}
+                                  <div className="text-[10px] text-emerald-400/80 font-mono leading-tight bg-black/30 p-1.5 border border-emerald-500/10 rounded">
+                                    ⚙️ <span className="font-bold">CAD TELEMETRY BONDED:</span> Vector alignments matches with perfect 0.00% clearance tolerance constraints!
+                                  </div>
+                                </div>
+                              ) : (
+                                /* DEFAULT IDLE UPLOAD BUTTON ZONE */
+                                <button 
+                                  onClick={() => fileInputRef.current?.click()}
+                                  className="w-full py-2.5 bg-neutral-900 hover:bg-neutral-800 border border-white/10 hover:border-white/20 text-white text-[10px] font-bold tracking-widest uppercase cursor-pointer transition-all flex flex-col items-center justify-center gap-1 rounded"
+                                >
+                                  <span>SELECT DRAFT FILE TO SYNC</span>
+                                  <span className="text-[8px] text-zinc-500 lowercase font-medium tracking-normal">Or drag and drop here</span>
+                                </button>
+                              )}
                             </div>
 
                             {/* Hints Panel */}
@@ -1506,40 +2304,65 @@ export default function BikeGallery({
                                 <span className="text-[10px] text-zinc-500 font-bold">Hints Revealed: {hintsUsedComp}/3</span>
                               </div>
 
-                              {hintsUsedComp > 0 ? (
-                                <div className="space-y-2 text-zinc-300">
-                                  {Array.from({ length: hintsUsedComp }).map((_, idx) => (
-                                    <div key={idx} className="p-2.5 bg-black/40 border border-[#e2231a]/10 text-[11px] leading-relaxed">
-                                      <span className="text-suzuki-red font-bold">Hint #{idx+1}:</span> {activeQ.hints[idx]}
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <p className="text-zinc-400 italic p-1.5 text-xs md:text-sm font-medium">No hints requested yet. Hints are proactive and explain the dynamic formula structures.</p>
-                              )}
+                              <AnimatePresence mode="popLayout">
+                                {hintsUsedComp > 0 ? (
+                                  <motion.div
+                                    key="g1-hints"
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: "auto" }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                    className="space-y-2 text-zinc-300 overflow-hidden"
+                                  >
+                                    {Array.from({ length: hintsUsedComp }).map((_, idx) => (
+                                      <motion.div
+                                        key={idx}
+                                        initial={{ opacity: 0, x: -5 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        transition={{ delay: idx * 0.05 }}
+                                        className="p-2.5 bg-black/40 border border-[#e2231a]/10 text-[11px] leading-relaxed animate-none"
+                                      >
+                                        <span className="text-suzuki-red font-bold">Hint #{idx+1}:</span> {activeQ.hints[idx]}
+                                      </motion.div>
+                                    ))}
+                                  </motion.div>
+                                ) : (
+                                  <motion.p
+                                    key="g1-no-hints"
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    className="text-zinc-400 italic p-1.5 text-xs md:text-sm font-medium"
+                                  >
+                                    No hints requested yet. Hints are proactive and explain the dynamic formula structures.
+                                  </motion.p>
+                                )}
+                              </AnimatePresence>
 
                               <div className="flex gap-2 mt-3 pt-2 border-t border-white/5">
-                                <button
+                                <motion.button
                                   onClick={() => handleRequestHint(currentModId, activeQ.id, activeQ.hints.length)}
                                   disabled={hintsUsedComp >= activeQ.hints.length}
-                                  className="flex-1 py-1.5 bg-[#222] hover:bg-neutral-800 text-white border border-white/10 hover:border-white/20 text-[10px] uppercase font-bold tracking-widest cursor-pointer disabled:opacity-50"
+                                  whileHover={hintsUsedComp < activeQ.hints.length ? { scale: 1.015 } : {}}
+                                  whileTap={hintsUsedComp < activeQ.hints.length ? { scale: 0.985 } : {}}
+                                  className="flex-1 py-1.5 bg-[#222] hover:bg-neutral-800 text-white border border-white/10 hover:border-white/20 text-[10px] uppercase font-bold tracking-widest cursor-pointer disabled:opacity-50 transition-colors"
                                 >
                                   [EXPOSE PROGRESS TRANSITION HINT]
-                                </button>
-                                <button
+                                </motion.button>
+                                <motion.button
                                   onClick={() => handleRevealSolution(currentModId, activeQ.id)}
                                   disabled={solRevealedComp}
-                                  className="py-1.5 px-3 bg-[#a52a2a]/20 hover:bg-[#a52a2a]/40 text-red-400 border border-[#a52a2a]/30 text-[10px] uppercase font-bold tracking-widest cursor-pointer disabled:opacity-50"
+                                  whileHover={!solRevealedComp ? { scale: 1.015 } : {}}
+                                  whileTap={!solRevealedComp ? { scale: 0.985 } : {}}
+                                  className="py-1.5 px-3 bg-[#a52a2a]/20 hover:bg-[#a52a2a]/40 text-red-100 border border-[#a52a2a]/30 text-[10px] uppercase font-bold tracking-widest cursor-pointer disabled:opacity-50 transition-colors"
                                 >
                                   [FORCE REVEAL EXPLANATION]
-                                </button>
+                                </motion.button>
                               </div>
                             </div>
                           </div>
                         </div>
 
                         {/* Right column: Subjective layout with answers */}
-                        <div className="lg:col-span-7 flex flex-col justify-between pl-0 lg:pl-6 space-y-6">
+                        <div className="lg:col-span-8 flex flex-col justify-between pl-0 lg:pl-6 space-y-6">
                           {(() => {
                             const lockStatus = isQuestionLockedByChrono(currentModId, activeQ.id);
 
@@ -1555,7 +2378,7 @@ export default function BikeGallery({
                                 </div>
 
                                 {/* Navigation Header index buttons */}
-                                <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 mb-4">
+                                <div className="flex flex-row flex-wrap justify-between items-center gap-3 mb-4">
                                   <span className="text-xs md:text-sm font-mono tracking-widest text-[#e2231a] uppercase font-bold shrink-0">
                                     PROBLEM {activeQ.id} OF 21 // {getQuestionCountLabel(activeQ.id)}
                                   </span>
@@ -1622,7 +2445,11 @@ export default function BikeGallery({
 
                                     {/* Workings display if cleared/revealed */}
                                     {(isSolvedComp || solRevealedComp) && (
-                                      <div className="p-4 bg-[#141414] border border-white/5 rounded text-xs font-mono text-zinc-300 space-y-2 mb-6">
+                                      <div className="p-4 bg-[#141414] border border-white/5 rounded text-xs font-mono text-zinc-300 space-y-2 mb-6 text-left">
+                                        <div className="flex justify-between items-center pb-2 border-b border-white/5 mb-2">
+                                          <span className="text-zinc-400 font-bold uppercase text-[10px] tracking-wider">✔️ CORRECT ANSWER:</span>
+                                          <span className="text-emerald-400 font-extrabold text-sm tracking-widest">{activeQ.correctAnswer}</span>
+                                        </div>
                                         <span className="text-suzuki-red font-bold uppercase block text-[10px] tracking-wider">✔️ Core Numerical Explanation:</span>
                                         <p className="text-zinc-400 leading-relaxed font-sans">{activeQ.explanation}</p>
                                       </div>
@@ -1660,24 +2487,73 @@ export default function BikeGallery({
                                             onChange={(e) => setG1Input(e.target.value)}
                                             className="flex-1 bg-black border border-white/10 focus:border-suzuki-red p-4 text-white text-sm font-mono tracking-widest rounded uppercase focus:outline-none"
                                           />
-                                          <button
+                                          <motion.button
                                             type="button"
                                             onClick={handleG1Submit}
                                             disabled={isSolvedComp || solRevealedComp || !g1Input || questionTimedOut}
-                                            className="px-6 bg-[#e2231a] hover:bg-neutral-950 disabled:opacity-40 border border-red-600 hover:border-white/30 text-white font-condensed font-black tracking-widest text-sm uppercase cursor-pointer rounded transition-all"
+                                            whileHover={!(isSolvedComp || solRevealedComp || !g1Input || questionTimedOut) ? { scale: 1.03 } : {}}
+                                            whileTap={!(isSolvedComp || solRevealedComp || !g1Input || questionTimedOut) ? { scale: 0.97 } : {}}
+                                            className="px-6 bg-[#e2231a] hover:bg-neutral-950 disabled:opacity-40 border border-red-600 hover:border-white/30 text-white font-condensed font-black tracking-widest text-sm uppercase cursor-pointer rounded transition-colors"
                                           >
                                             VALIDATE
-                                          </button>
+                                          </motion.button>
                                         </div>
                                       </div>
                                     )}
 
-                                    {isSolvedComp && !solRevealedComp && (
-                                      <div className="mt-4 p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono rounded flex items-center gap-2">
-                                        <Check size={14} />
-                                        <span>NUMERICAL INTEGRITY PASSED: Calculations aligned with dynamic database tolerances!</span>
+                                    <AnimatePresence mode="wait">
+                                      {isSolvedComp && !solRevealedComp && (() => {
+                                        const isGradedCorrect = correctlyAnswered[compositeKey];
+                                        return isGradedCorrect ? (
+                                          <motion.div
+                                            initial={{ opacity: 0, y: 15 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: -10 }}
+                                            transition={{ duration: 0.35, ease: "easeOut" }}
+                                            className="mt-4 p-3 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono rounded flex items-center gap-2"
+                                          >
+                                            <Check size={14} className="shrink-0" />
+                                            <span>NUMERICAL INTEGRITY PASSED: Calculations aligned with dynamic database tolerances!</span>
+                                          </motion.div>
+                                        ) : (
+                                          <motion.div
+                                            initial={{ opacity: 0, y: 15 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: -10 }}
+                                            transition={{ duration: 0.35, ease: "easeOut" }}
+                                            className="mt-4 p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-mono rounded flex items-center gap-2"
+                                          >
+                                            <ShieldAlert size={14} className="shrink-0 text-red-400" />
+                                            <span>VERIFICATION ERROR: Calculated value does not match target within tolerances.</span>
+                                          </motion.div>
+                                        );
+                                      })()}
+                                    </AnimatePresence>
+
+                                    {/* NAVIGATION ACTION BAR */}
+                                    <div className="mt-6 pt-4 border-t border-white/5 flex flex-wrap gap-4 items-center justify-between">
+                                      <div>
+                                        {!(isSolvedComp || solRevealedComp) && (
+                                          <button
+                                            type="button"
+                                            onClick={handleSkipQuestion}
+                                            className="px-4 py-2 bg-zinc-800/80 hover:bg-zinc-700 hover:text-white text-zinc-300 border border-white/10 hover:border-white/20 text-[11px] font-mono tracking-wider uppercase rounded transition-all cursor-pointer font-bold"
+                                          >
+                                            ⏭️ Skip Question
+                                          </button>
+                                        )}
                                       </div>
-                                    )}
+                                      
+                                      {(isSolvedComp || solRevealedComp) && (
+                                        <button
+                                          type="button"
+                                          onClick={handleNextQuestion}
+                                          className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-condensed font-black tracking-widest text-xs uppercase cursor-pointer rounded transition-colors flex items-center gap-1.5 shadow-lg shadow-emerald-950/20"
+                                        >
+                                          👉 Go to Next Question <ArrowRight size={13} />
+                                        </button>
+                                      )}
+                                    </div>
                                   </>
                                 )}
                               </div>
@@ -1700,41 +2576,11 @@ export default function BikeGallery({
                     return (
                       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 bg-[#111] border border-white/10 overflow-hidden shadow-2xl rounded-lg p-6 md:p-10 font-sans">
                         {/* Left sidebar: drawing analysis + hints */}
-                        <div className="lg:col-span-5 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-white/15 pb-6 lg:pb-0 lg:pr-8 space-y-4">
+                        <div className="lg:col-span-4 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-white/15 pb-6 lg:pb-0 lg:pr-8 space-y-4">
                           <div className="space-y-4">
                             <div className="flex justify-between items-center text-[10px] uppercase font-mono tracking-widest text-zinc-500 font-extrabold">
                               <span>Socratic Advice Vector</span>
                               <span className="text-suzuki-red animate-pulse">● GATE_LEVEL_ALIGNMENT</span>
-                            </div>
-
-                            {/* Drawing card */}
-                            <div className="aspect-square bg-gradient-to-b from-neutral-900 to-black border border-white/10 rounded-xl flex flex-col justify-between p-4 relative overflow-hidden select-none group shadow-2xl">
-                              <span className="absolute top-2.5 left-2.5 text-[9px] font-mono text-zinc-500 uppercase tracking-widest bg-black/60 px-2 py-0.5 rounded border border-white/5 z-20 font-bold">
-                                SCHEMATIC_VECTOR_RIG: {g2ActiveModule}
-                              </span>
-                              
-                              <div className="relative w-full h-[180px] rounded-lg overflow-hidden border border-white/5 shadow-inner flex items-center justify-center">
-                                <div className="absolute inset-0 bg-neutral-950/40 mix-blend-overlay z-10 group-hover:bg-transparent transition-all duration-300" />
-                                <img 
-                                  src="https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=600&q=85&auto=format&fit=crop"
-                                  alt="Mechanical engineering details layout references"
-                                  className="absolute inset-0 w-full h-full object-cover grayscale opacity-45 group-hover:opacity-85 group-hover:scale-105 transition-all duration-700 pointer-events-none"
-                                  referrerPolicy="no-referrer"
-                                />
-                                {/* Dynamic SVG Overlay with high visibility */}
-                                <svg viewBox="0 0 200 200" className="w-40 h-40 drop-shadow-[0_4px_12px_rgba(0,0,0,0.95)] opacity-90 group-hover:opacity-100 transition-all z-12">
-                                  <circle cx="100" cy="100" r="50" stroke="rgba(255,255,255,0.4)" strokeWidth="2.5" fill="none" />
-                                  <rect x="85" y="85" width="30" height="30" stroke="#f00" strokeWidth="2.0" fill="none" rx="1" />
-                                  <line x1="100" y1="20" x2="100" y2="180" stroke="#888" strokeWidth="1" strokeDasharray="3" />
-                                  <line x1="20" y1="100" x2="180" y2="100" stroke="#888" strokeWidth="1" strokeDasharray="3" />
-                                  <text x="50" y="50" fill="#c8ff00" fontSize="10" fontWeight="bold" fontFamily="monospace">Re = ρVD/μ</text>
-                                  <text x="110" y="140" fill="#00d2ff" fontSize="9" fontWeight="bold" fontFamily="monospace">Isentropic Loop</text>
-                                </svg>
-                              </div>
-
-                              <p className="text-xs font-mono text-center text-zinc-400 leading-normal mt-2 font-medium bg-black/40 py-1.5 px-2 rounded border border-white/5">
-                                Vector stress and thermal relations mapped for nationwide competitive engineering thresholds.
-                              </p>
                             </div>
 
                             {/* Hints Panel */}
@@ -1747,40 +2593,65 @@ export default function BikeGallery({
                                 <span className="text-[10px] text-zinc-500 font-bold">Hints Revealed: {hintsUsedComp}/3</span>
                               </div>
 
-                              {hintsUsedComp > 0 ? (
-                                <div className="space-y-2 text-zinc-300">
-                                  {Array.from({ length: hintsUsedComp }).map((_, idx) => (
-                                    <div key={idx} className="p-2.5 bg-black/40 border border-[#e2231a]/10 text-[11px] leading-relaxed">
-                                      <span className="text-suzuki-red font-bold">Hint #{idx+1}:</span> {activeQ.hints[idx]}
-                                    </div>
-                                  ))}
-                                </div>
-                              ) : (
-                                <p className="text-zinc-400 italic p-1.5 text-xs md:text-sm font-medium">No hints requested yet. Hints are proactive and explain the dynamic formula structures.</p>
-                              )}
+                              <AnimatePresence mode="popLayout">
+                                {hintsUsedComp > 0 ? (
+                                  <motion.div
+                                    key="g2-hints"
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: "auto" }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                    className="space-y-2 text-zinc-300 overflow-hidden"
+                                  >
+                                    {Array.from({ length: hintsUsedComp }).map((_, idx) => (
+                                      <motion.div
+                                        key={idx}
+                                        initial={{ opacity: 0, x: -5 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        transition={{ delay: idx * 0.05 }}
+                                        className="p-2.5 bg-black/40 border border-[#e2231a]/10 text-[11px] leading-relaxed animate-none"
+                                      >
+                                        <span className="text-suzuki-red font-bold">Hint #{idx+1}:</span> {activeQ.hints[idx]}
+                                      </motion.div>
+                                    ))}
+                                  </motion.div>
+                                ) : (
+                                  <motion.p
+                                    key="g2-no-hints"
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    className="text-zinc-400 italic p-1.5 text-xs md:text-sm font-medium"
+                                  >
+                                    No hints requested yet. Hints are proactive and explain the dynamic formula structures.
+                                  </motion.p>
+                                )}
+                              </AnimatePresence>
 
                               <div className="flex gap-2 mt-3 pt-2 border-t border-white/5">
-                                <button
+                                <motion.button
                                   onClick={() => handleRequestHint(currentModId, activeQ.id, activeQ.hints.length)}
                                   disabled={hintsUsedComp >= activeQ.hints.length}
-                                  className="flex-1 py-1.5 bg-[#222] hover:bg-neutral-800 text-white border border-white/10 hover:border-white/20 text-[10px] uppercase font-bold tracking-widest cursor-pointer disabled:opacity-50"
+                                  whileHover={hintsUsedComp < activeQ.hints.length ? { scale: 1.015 } : {}}
+                                  whileTap={hintsUsedComp < activeQ.hints.length ? { scale: 0.985 } : {}}
+                                  className="flex-1 py-1.5 bg-[#222] hover:bg-neutral-800 text-white border border-white/10 hover:border-white/20 text-[10px] uppercase font-bold tracking-widest cursor-pointer disabled:opacity-50 transition-colors"
                                 >
                                   [EXPOSE PROGRESS TRANSITION HINT]
-                                </button>
-                                <button
+                                </motion.button>
+                                <motion.button
                                   onClick={() => handleRevealSolution(currentModId, activeQ.id)}
                                   disabled={solRevealedComp}
-                                  className="py-1.5 px-3 bg-[#a52a2a]/20 hover:bg-[#a52a2a]/40 text-red-400 border border-[#a52a2a]/30 text-[10px] uppercase font-bold tracking-widest cursor-pointer disabled:opacity-50"
+                                  whileHover={!solRevealedComp ? { scale: 1.015 } : {}}
+                                  whileTap={!solRevealedComp ? { scale: 0.985 } : {}}
+                                  className="py-1.5 px-3 bg-[#a52a2a]/20 hover:bg-[#a52a2a]/40 text-red-100 border border-[#a52a2a]/30 text-[10px] uppercase font-bold tracking-widest cursor-pointer disabled:opacity-50 transition-colors"
                                 >
                                   [FORCE REVEAL EXPLANATION]
-                                </button>
+                                </motion.button>
                               </div>
                             </div>
                           </div>
                         </div>
 
                         {/* Right column: Multiple Choice interface */}
-                        <div className="lg:col-span-7 flex flex-col justify-between pl-0 lg:pl-6 space-y-6">
+                        <div className="lg:col-span-8 flex flex-col justify-between pl-0 lg:pl-6 space-y-6">
                           {(() => {
                             const lockStatus = isQuestionLockedByChrono(currentModId, activeQ.id);
 
@@ -1796,7 +2667,7 @@ export default function BikeGallery({
                                 </div>
 
                                 {/* Navigation indices */}
-                                <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 mb-4">
+                                <div className="flex flex-row flex-wrap justify-between items-center gap-3 mb-4">
                                   <span className="text-xs md:text-sm font-mono tracking-widest text-[#e2231a] uppercase font-bold shrink-0">
                                     PROBLEM {activeQ.id} OF 21 // {getQuestionCountLabel(activeQ.id)}
                                   </span>
@@ -1908,17 +2779,19 @@ export default function BikeGallery({
                                           }
 
                                           return (
-                                            <button
+                                            <motion.button
                                               key={oIdx}
                                               disabled={isSolvedComp || solRevealedComp || questionTimedOut}
                                               onClick={() => setG2OptionSelected(oIdx)}
-                                              className={`p-4 text-left border rounded transition-all font-mono text-xs flex gap-3 items-center group cursor-pointer ${btnClass}`}
+                                              whileHover={!(isSolvedComp || solRevealedComp || questionTimedOut) ? { scale: 1.015, x: 2 } : {}}
+                                              whileTap={!(isSolvedComp || solRevealedComp || questionTimedOut) ? { scale: 0.985 } : {}}
+                                              className={`p-4 text-left border rounded transition-colors font-mono text-xs flex gap-3 items-center group cursor-pointer ${btnClass}`}
                                             >
                                               <span className="w-6 h-6 rounded-full bg-black/40 border border-white/10 text-[10px] font-bold flex items-center justify-center shrink-0">
                                                 {String.fromCharCode(65 + oIdx)}
                                               </span>
                                               <span className="leading-relaxed font-sans">{opt}</span>
-                                            </button>
+                                            </motion.button>
                                           );
                                         })}
                                       </div>
@@ -1926,14 +2799,78 @@ export default function BikeGallery({
 
                                     {/* Submit choices controls */}
                                     {!isSolvedComp && !questionTimedOut && (
-                                      <button
+                                      <motion.button
                                         onClick={handleG2Submit}
                                         disabled={g2OptionSelected === null}
-                                        className="w-full mt-6 py-4 bg-[#e2231a] hover:bg-neutral-950 disabled:opacity-40 border border-red-600 hover:border-white/30 text-white font-condensed font-bold tracking-widest text-xs uppercase cursor-pointer rounded transition-all shadow"
+                                        whileHover={g2OptionSelected !== null ? { scale: 1.02 } : {}}
+                                        whileTap={g2OptionSelected !== null ? { scale: 0.98 } : {}}
+                                        className="w-full mt-6 py-4 bg-[#e2231a] hover:bg-neutral-950 disabled:opacity-40 border border-red-600 hover:border-white/30 text-white font-condensed font-bold tracking-widest text-xs uppercase cursor-pointer rounded transition-colors shadow"
                                       >
                                         VALIDATE CHOSEN ANSWER
-                                      </button>
+                                      </motion.button>
                                     )}
+
+                                    <AnimatePresence mode="wait">
+                                      {isSolvedComp && !solRevealedComp && (() => {
+                                        const isCorrect = mcqAnswers[compositeKey] === activeQ.correctAnswerIndex;
+                                        return isCorrect ? (
+                                          <motion.div
+                                            key={`succ-${compositeKey}`}
+                                            initial={{ opacity: 0, scale: 0.96, y: 15 }}
+                                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                                            exit={{ opacity: 0, scale: 0.96, y: -10 }}
+                                            transition={{ duration: 0.35, ease: "easeOut" }}
+                                            className="mt-6 p-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono rounded flex items-center gap-3 shadow-lg shadow-emerald-500/5"
+                                          >
+                                            <CheckCircle className="text-emerald-400 shrink-0" size={16} />
+                                            <div>
+                                              <div className="font-bold text-emerald-300">GATE MATRIX CONVERGED: Option verified!</div>
+                                              <div className="text-[11px] text-emerald-400/80 mt-0.5">Your concept selection conforms exactly with physical laws (+15 completed state).</div>
+                                            </div>
+                                          </motion.div>
+                                        ) : (
+                                          <motion.div
+                                            key={`err-${compositeKey}`}
+                                            initial={{ opacity: 0, scale: 0.96, y: 15 }}
+                                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                                            exit={{ opacity: 0, scale: 0.96, y: -10 }}
+                                            transition={{ duration: 0.35, ease: "easeOut" }}
+                                            className="mt-6 p-4 bg-red-500/10 border border-red-500/30 text-red-500 text-xs font-mono rounded flex items-center gap-3 shadow-lg shadow-red-500/5"
+                                          >
+                                            <ShieldAlert className="text-red-450 shrink-0" size={16} />
+                                            <div>
+                                              <div className="font-bold text-red-400">EVALUATION FAIL: Incorrect option chosen</div>
+                                              <div className="text-[11px] text-red-550 mt-0.5">Physical specs did not align. Let's study the explanatory details.</div>
+                                            </div>
+                                          </motion.div>
+                                        );
+                                      })()}
+                                    </AnimatePresence>
+
+                                    {/* NAVIGATION ACTION BAR */}
+                                    <div className="mt-6 pt-4 border-t border-white/5 flex flex-wrap gap-4 items-center justify-between">
+                                      <div>
+                                        {!(isSolvedComp || solRevealedComp) && (
+                                          <button
+                                            type="button"
+                                            onClick={handleSkipQuestion}
+                                            className="px-4 py-2 bg-zinc-800/80 hover:bg-zinc-700 hover:text-white text-zinc-300 border border-white/10 hover:border-white/20 text-[11px] font-mono tracking-wider uppercase rounded transition-all cursor-pointer font-bold"
+                                          >
+                                            ⏭️ Skip Question
+                                          </button>
+                                        )}
+                                      </div>
+                                      
+                                      {(isSolvedComp || solRevealedComp) && (
+                                        <button
+                                          type="button"
+                                          onClick={handleNextQuestion}
+                                          className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-condensed font-black tracking-widest text-xs uppercase cursor-pointer rounded transition-colors flex items-center gap-1.5 shadow-lg shadow-emerald-950/20"
+                                        >
+                                          👉 Go to Next Question <ArrowRight size={13} />
+                                        </button>
+                                      )}
+                                    </div>
                                   </>
                                 )}
                               </div>
@@ -2041,6 +2978,7 @@ export default function BikeGallery({
                             const lockStatus = isQuestionLockedByChrono(currentModId, activeQ.id);
 
                             if (lockStatus.locked) {
+                              const exp = getDetailedLockExplanation(currentModId, activeQ.id);
                               return (
                                 <div className="bg-red-950/20 border border-red-500/30 p-10 rounded text-center my-6 space-y-4">
                                   <Lock size={44} className="text-red-500 mx-auto animate-pulse" />
@@ -2050,8 +2988,34 @@ export default function BikeGallery({
                                   <p className="text-zinc-300 text-xs font-sans leading-relaxed max-w-md mx-auto">
                                     {lockStatus.reason}
                                   </p>
+
+                                  {exp && (
+                                    <div className="p-4 bg-orange-950/40 border border-orange-500/30 rounded text-left max-w-xs sm:max-w-md mx-auto space-y-2">
+                                      <div className="text-orange-400 font-bold font-mono text-xs uppercase tracking-wider">🔒 ACCURACY LOCK REASON DETAIL:</div>
+                                      <p className="text-zinc-300 text-xs font-sans leading-relaxed">
+                                        {exp.reason}
+                                      </p>
+                                      <div className="text-[11px] font-mono text-zinc-400">
+                                        📊 Level {exp.levelToReset} Stats: {exp.solvedCount}/7 solved, {exp.correctCount}/7 correct (Passing score is 50% or more).
+                                      </div>
+                                      
+                                      <div className="pt-2">
+                                        <button
+                                          onClick={() => {
+                                            if (confirm(`Are you sure you want to reset Level ${exp.levelToReset} of this module? This will clear its 7 solved answers and generate different questions (new parameter numbers) to solve.`)) {
+                                              resetLevel(currentModId, exp.levelToReset);
+                                            }
+                                          }}
+                                          className="w-full py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded text-xs font-mono font-bold uppercase transition-colors cursor-pointer text-center font-sans"
+                                        >
+                                          🔄 Reset Level {exp.levelToReset} & Solve Different Questions
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+
                                   <div className="p-3 bg-red-950/40 border border-red-900/40 text-[11px] font-mono rounded text-zinc-400 max-w-sm mx-auto">
-                                    ⚠️ Week 2 is reserved for Intermediate and Week 3 for Advanced levels. Pass the previous level with 100% accuracy to trigger instant bypass credit!
+                                    ⚠️ Week 2 is reserved for Intermediate and Week 3 for Advanced levels. Pass the previous level with 100% accuracy to trigger instant bypass credit, or simulate timeline advancement!
                                   </div>
                                 </div>
                               );
@@ -2139,7 +3103,7 @@ export default function BikeGallery({
                                           textClass = "text-red-400";
                                         } else {
                                           labelBorder = "border-white/5 opacity-40 bg-black/10";
-                                          textClass = "text-zinc-600";
+                                          textClass = "text-zinc-650";
                                         }
                                       } else if (isSelected) {
                                         labelBorder = "border-yellow-500 bg-yellow-500/5";
@@ -2151,7 +3115,7 @@ export default function BikeGallery({
                                           key={oIdx}
                                           disabled={isSolvedComp || solRevealedComp || questionTimedOut}
                                           onClick={() => setG3OptionSelected(oIdx)}
-                                          className={`w-full text-left p-4 rounded border transition-all text-xs flex items-center justify-between cursor-pointer ${labelBorder}`}
+                                          className={`w-full text-left p-4 rounded border transition-all text-xs flex items-center justify-between cursor-pointer hover:scale-[1.01] hover:translate-x-0.5 active:scale-[0.99] ${labelBorder}`}
                                         >
                                           <span className={`font-sans ${textClass}`}>{opt}</span>
                                           <span className="font-mono text-[10px] text-zinc-500">[{String.fromCharCode(65 + oIdx)}]</span>
@@ -2160,19 +3124,51 @@ export default function BikeGallery({
                                     })}
                                   </div>
                                 )}
+
+                                {isSolvedComp && !solRevealedComp && (() => {
+                                  const isCorrect = mcqAnswers[compositeKey] === activeQ.correctAnswerIndex;
+                                  return isCorrect ? (
+                                    <div
+                                      key={`g3-succ-${compositeKey}`}
+                                      className="mt-4 p-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-mono rounded flex items-center gap-3 shadow-lg shadow-emerald-500/5 transition-all duration-300"
+                                    >
+                                      <CheckCircle className="text-emerald-400 shrink-0" size={16} />
+                                      <div>
+                                        <div className="font-bold text-emerald-300">PLACEMENT ANSWER RECOGNIZED: Correct!</div>
+                                        <div className="text-[11px] text-emerald-400/80 mt-0.5">Your core response is perfect (+15 points written to score).</div>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div
+                                      key={`g3-err-${compositeKey}`}
+                                      className="mt-4 p-4 bg-red-500/10 border border-red-500/30 text-red-500 text-xs font-mono rounded flex items-center gap-3 shadow-lg shadow-red-500/5 transition-all duration-300"
+                                    >
+                                      <ShieldAlert className="text-red-400 shrink-0" size={16} />
+                                      <div>
+                                        <div className="font-bold text-red-400">PLACEMENT VERIFICATION UNRESOLVED</div>
+                                        <div className="text-[11px] text-red-450 mt-0.5">The choice selected deviates from dynamic mechanical limits. Refer to explanation.</div>
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
                               </div>
                             );
                           })()}
 
                           {/* Socratic Hint progressions display */}
                           {hintsUsedComp > 0 && (
-                            <div className="bg-zinc-950 border border-yellow-500/10 p-4 rounded text-xs font-mono space-y-2">
+                            <div
+                              className="bg-zinc-950 border border-yellow-500/10 p-4 rounded text-xs font-mono space-y-2 overflow-hidden mt-4 transition-all duration-300"
+                            >
                               <span className="text-yellow-500 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5">
                                 <BrainCircuit size={12} />
                                 Progressive Socratic Clues:
                               </span>
                               {Array.from({ length: hintsUsedComp }).map((_, idx) => (
-                                <p key={idx} className="text-zinc-400 border-l border-yellow-500/30 pl-3 leading-relaxed">
+                                <p
+                                  key={idx}
+                                  className="text-zinc-400 border-l border-yellow-500/30 pl-3 leading-relaxed transition-all duration-300"
+                                >
                                   • {activeQ.hints[idx]}
                                 </p>
                               ))}
@@ -2185,28 +3181,50 @@ export default function BikeGallery({
                               <button
                                 onClick={() => handleRequestHint(currentModId, activeQ.id, activeQ.hints.length)}
                                 disabled={hintsUsedComp >= activeQ.hints.length}
-                                className="px-4 py-2.5 bg-zinc-950 hover:bg-neutral-900 border border-white/10 text-zinc-400 hover:text-white text-[10px] font-mono uppercase font-bold transition-all cursor-pointer disabled:opacity-40"
+                                className="px-4 py-2.5 bg-zinc-950 hover:bg-neutral-900 border border-white/10 text-zinc-400 hover:text-white text-[10px] font-mono uppercase font-bold transition-all hover:scale-102 active:scale-98 cursor-pointer disabled:opacity-40"
                               >
                                 Request progressive hint ({hintsUsedComp}/{activeQ.hints.length})
                               </button>
                               <button
                                 onClick={() => handleRevealSolution(currentModId, activeQ.id)}
                                 disabled={solRevealedComp || isSolvedComp}
-                                className="px-4 py-2.5 bg-[#a52a2a]/10 hover:bg-[#a52a2a]/30 border border-red-950 text-red-400 text-[10px] font-mono uppercase font-black transition-all cursor-pointer disabled:opacity-40"
+                                className="px-4 py-2.5 bg-[#a52a2a]/10 hover:bg-[#a52a2a]/30 border border-red-950 text-red-100 text-[10px] font-mono uppercase font-black transition-all hover:scale-102 active:scale-98 cursor-pointer disabled:opacity-40"
                               >
                                 Reveal formula solution (-5 PTS)
                               </button>
+                              
+                              {!(isSolvedComp || solRevealedComp) && (
+                                <button
+                                  type="button"
+                                  onClick={handleSkipQuestion}
+                                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-white/10 hover:border-white/20 text-[10px] font-mono uppercase font-bold transition-all cursor-pointer rounded"
+                                >
+                                  Skip Question
+                                </button>
+                              )}
                             </div>
 
-                            {!isSolvedComp && (
-                              <button
-                                onClick={handleG3Submit}
-                                disabled={g3OptionSelected === null}
-                                className="px-6 py-3 bg-[#e2231a] hover:bg-neutral-950 disabled:opacity-40 border border-red-600 hover:border-white/30 text-white font-condensed font-bold tracking-widest text-xs uppercase cursor-pointer rounded transition-all shadow"
-                              >
-                                Check validation
-                              </button>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {!isSolvedComp && (
+                                <button
+                                  onClick={handleG3Submit}
+                                  disabled={g3OptionSelected === null}
+                                  className="px-6 py-3 bg-[#e2231a] hover:bg-neutral-950 disabled:opacity-40 border border-red-600 hover:border-white/30 text-white font-condensed font-bold tracking-widest text-xs uppercase cursor-pointer rounded transition-all hover:scale-103 active:scale-97 shadow"
+                                >
+                                  Check validation
+                                </button>
+                              )}
+
+                              {(isSolvedComp || solRevealedComp) && (
+                                <button
+                                  type="button"
+                                  onClick={handleNextQuestion}
+                                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-condensed font-black tracking-widest text-xs uppercase cursor-pointer rounded transition-colors flex items-center gap-1.5 shadow-lg shadow-emerald-950/20"
+                                >
+                                  👉 Go to Next Question <ArrowRight size={13} />
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -2220,6 +3238,69 @@ export default function BikeGallery({
         )}
 
       </div>
+
+      {/* Custom app-level popup notify alerts */}
+      {appAlert && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-fadeIn">
+          <div
+            className="w-full max-w-md bg-[#0a0a0a] border border-zinc-800 rounded-lg p-6 shadow-2xl relative overflow-hidden text-left transform transition-all duration-300 scale-100 opacity-100"
+          >
+            {/* Highlight bar depending on type */}
+            <div className={`absolute top-0 inset-x-0 h-1.5 ${
+              appAlert.type === 'success' ? 'bg-emerald-500' :
+              appAlert.type === 'error' ? 'bg-[#e2231a]' :
+              appAlert.type === 'warning' ? 'bg-amber-500' :
+              'bg-zinc-600'
+            }`} />
+
+            <div className="mt-2 space-y-4">
+              <h3 className="text-lg font-mono font-bold text-zinc-100 flex items-center gap-2 tracking-wider">
+                {appAlert.type === 'success' ? '✅ CONGRATULATIONS' :
+                 appAlert.type === 'error' ? '🚨 ACTION REQUIRED / LOCKED' :
+                 appAlert.type === 'warning' ? '⚠️ CONFIRMATION REQUIRED' :
+                 'ℹ️ NOTIFICATION'}
+              </h3>
+              
+              <p className="text-zinc-300 text-sm leading-relaxed font-sans whitespace-pre-wrap">
+                {appAlert.text}
+              </p>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                {appAlert.isConfirm ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setAppAlert(null)}
+                      className="px-4 py-2 text-xs font-mono text-zinc-400 hover:text-zinc-100 uppercase transition-all rounded hover:bg-zinc-900 border border-zinc-800 cursor-pointer font-bold"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const conf = appAlert.onConfirm;
+                        setAppAlert(null);
+                        if (conf) conf();
+                      }}
+                      className="px-5 py-2.5 text-xs font-mono bg-amber-600 hover:bg-amber-500 text-black uppercase font-black rounded shadow transition-all cursor-pointer"
+                    >
+                      Confirm Skip
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setAppAlert(null)}
+                    className="px-6 py-2.5 text-xs font-mono bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border border-white/10 uppercase tracking-wider rounded font-black transition-all cursor-pointer"
+                  >
+                    Acknowledge
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

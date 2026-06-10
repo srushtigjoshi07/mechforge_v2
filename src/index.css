@@ -7,6 +7,11 @@
   --color-suzuki-red: #E2231A;
   --color-suzuki-blue: #1A3278;
   --color-dark-bg: #080808;
+  
+  --text-xs: 0.95rem;
+  --text-xs--line-height: 1.4;
+  --text-sm: 1.125rem;
+  --text-sm--line-height: 1.5;
 }
 
 @layer base {
@@ -34,3 +39,15 @@
     border-radius: 3px;
   }
 }
+
+/* Ensure explicit small arbitrary font sizes are scaled up by 1x or 2x */
+.text-\[9px\], [class*="text-\[9px\]"] {
+  font-size: 0.8125rem !important; /* ~13px */
+}
+.text-\[10px\], [class*="text-\[10px\]"] {
+  font-size: 0.875rem !important; /* ~14px */
+}
+.text-\[11px\], [class*="text-\[11px\]"] {
+  font-size: 0.9375rem !important; /* ~15px */
+}
+
